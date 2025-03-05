@@ -15,17 +15,18 @@ def visualize_pipeline_parallelism(
     Args:
         schedule: Dictionary mapping device IDs to lists of tasks.
                  Each task is a dictionary with keys:
-                 - 'type': 'forward' or 'backward'
+                 - 'type': 'forward', 'backward', or 'optimizer'
                  - 'batch': batch number
                  - 'start_time': start time of the task
                  - 'duration': duration of the task
         schedule_type: Type of scheduling algorithm used ("simple" or "1f1b")
         output_file: Path to save the visualization
     """
-    # Colors for forward and backward passes
+    # Colors for task types
     forward_color = "royalblue"
-    backward_color = "lightgreen"
-    empty_color = "lightgray"
+    backward_color = "sandybrown"  # Changed to match the reference image
+    optimizer_color = "#FFEFCF"    # Light beige for optimizer steps
+    empty_color = "whitesmoke"     # Very light gray for empty cells
 
     # Find the number of stages (devices)
     num_stages = len(schedule)
@@ -39,63 +40,98 @@ def visualize_pipeline_parallelism(
                 max_time = end_time
 
     # Create figure and axis
-    fig, ax = plt.subplots(figsize=(15, 5))
+    fig, ax = plt.subplots(figsize=(15, 4))
+    
+    # Create an empty grid with light gray color
+    for device_idx in range(num_stages):
+        device_idx_reversed = num_stages - device_idx - 1  # Reverse the device index for plotting
+        for t in range(int(max_time) + 1):
+            rect = Rectangle(
+                (t, device_idx_reversed),
+                1.0,
+                1.0,
+                edgecolor="lightgray",
+                facecolor=empty_color,
+                linewidth=0.5,
+            )
+            ax.add_patch(rect)
 
     # Plot the schedule
     for device_idx, device in enumerate(schedule):
         device_idx_reversed = num_stages - device_idx - 1  # Reverse the device index for plotting
         for task in schedule[device]:
-            color = forward_color if task["type"] == "forward" else backward_color
+            # Determine task color
+            if task["type"] == "forward":
+                color = forward_color
+                text_color = "white"
+            elif task["type"] == "backward":
+                color = backward_color
+                text_color = "black"
+            else:  # optimizer or any other type
+                color = optimizer_color
+                text_color = "black"
+                
             rect = Rectangle(
                 (task["start_time"], device_idx_reversed),
                 task["duration"],
-                1.0,  # Use full height to completely remove gaps
+                1.0,
                 edgecolor="black",
                 facecolor=color,
-                alpha=0.8,
+                linewidth=0.5,
             )
             ax.add_patch(rect)
 
             # Add text (batch number)
             ax.text(
                 task["start_time"] + task["duration"] / 2,
-                device_idx_reversed + 0.5,  # Center text in the middle of full-height rectangle
+                device_idx_reversed + 0.5,
                 str(task["batch"]),
                 ha="center",
                 va="center",
                 fontsize=10,
                 fontweight="bold",
-                color="white" if task["type"] == "forward" else "black",
+                color=text_color,
             )
 
     # Set axis limits and labels
-    ax.set_xlim(0, max_time * 1.05)
-    ax.set_ylim(-0.05, num_stages + 0.05)  # Keep the same tight padding
-    ax.set_yticks(np.arange(num_stages) + 0.5)  # Center ticks in the middle of each stage
+    ax.set_xlim(0, max_time + 0.5)
+    ax.set_ylim(-0.5, num_stages + 0.5)
+    ax.set_yticks(np.arange(num_stages) + 0.5)
+    
     # Reverse the order: Device 1 at the top, highest number at the bottom
     device_labels = [f"Device {i+1}" for i in range(num_stages)]
     device_labels.reverse()  # Reverse to put Device 1 at the top
     ax.set_yticklabels(device_labels)
-    ax.set_xlabel("Time")
-    ax.set_title(f"Pipeline Parallelism Schedule ({schedule_type})")
+    
+    # Add "Time" label and arrow at the bottom
+    arrow_y = -0.4
+    ax.text(0.5, arrow_y, "Time", ha="right", va="center", fontsize=10)
+    ax.annotate("", xy=(2, arrow_y), xytext=(1, arrow_y), 
+                arrowprops=dict(arrowstyle="->", lw=1))
+    
+    # Remove the x-axis ticks
+    ax.set_xticks([])
     
     # Remove the outer frame/border
     for spine in ax.spines.values():
         spine.set_visible(False)
 
-    # Add a legend
+    # Add a legend - using 3 parts like in the reference image
     forward_patch = Rectangle((0, 0), 1, 1, facecolor=forward_color)
     backward_patch = Rectangle((0, 0), 1, 1, facecolor=backward_color)
-    ax.legend(
-        [forward_patch, backward_patch],
-        ["Forward Pass", "Backward Pass"],
+    optimizer_patch = Rectangle((0, 0), 1, 1, facecolor=optimizer_color)
+    
+    legend = ax.legend(
+        [forward_patch, backward_patch, optimizer_patch],
+        ["Forward", "Backward", "Optimizer step"],
         loc="upper center",
         bbox_to_anchor=(0.5, -0.15),
-        ncol=2,
+        ncol=3,
+        frameon=False,
     )
 
-    # Add grid
-    ax.grid(True, linestyle="--", alpha=0.7)
+    # Turn off grid
+    ax.grid(False)
 
     # Save the figure
     plt.tight_layout()
