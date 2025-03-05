@@ -4,7 +4,7 @@ This tool simulates and visualizes pipeline parallelism scheduling strategies, f
 
 ## Usage
 
-### Example Output
+### Example
 
 ```bash
 python pipeline.py --num-stages 4 --num-batches 8

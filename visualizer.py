@@ -43,12 +43,13 @@ def visualize_pipeline_parallelism(
 
     # Plot the schedule
     for device_idx, device in enumerate(schedule):
+        device_idx_reversed = num_stages - device_idx - 1  # Reverse the device index for plotting
         for task in schedule[device]:
             color = forward_color if task["type"] == "forward" else backward_color
             rect = Rectangle(
-                (task["start_time"], device_idx),
+                (task["start_time"], device_idx_reversed),
                 task["duration"],
-                0.8,
+                1.0,  # Use full height to completely remove gaps
                 edgecolor="black",
                 facecolor=color,
                 alpha=0.8,
@@ -58,7 +59,7 @@ def visualize_pipeline_parallelism(
             # Add text (batch number)
             ax.text(
                 task["start_time"] + task["duration"] / 2,
-                device_idx + 0.4,
+                device_idx_reversed + 0.5,  # Center text in the middle of full-height rectangle
                 str(task["batch"]),
                 ha="center",
                 va="center",
@@ -69,11 +70,18 @@ def visualize_pipeline_parallelism(
 
     # Set axis limits and labels
     ax.set_xlim(0, max_time * 1.05)
-    ax.set_ylim(-0.2, num_stages + 0.2)
-    ax.set_yticks(np.arange(num_stages) + 0.4)
-    ax.set_yticklabels([f"Device {i+1}" for i in range(num_stages)])
+    ax.set_ylim(-0.05, num_stages + 0.05)  # Keep the same tight padding
+    ax.set_yticks(np.arange(num_stages) + 0.5)  # Center ticks in the middle of each stage
+    # Reverse the order: Device 1 at the top, highest number at the bottom
+    device_labels = [f"Device {i+1}" for i in range(num_stages)]
+    device_labels.reverse()  # Reverse to put Device 1 at the top
+    ax.set_yticklabels(device_labels)
     ax.set_xlabel("Time")
     ax.set_title(f"Pipeline Parallelism Schedule ({schedule_type})")
+    
+    # Remove the outer frame/border
+    for spine in ax.spines.values():
+        spine.set_visible(False)
 
     # Add a legend
     forward_patch = Rectangle((0, 0), 1, 1, facecolor=forward_color)
