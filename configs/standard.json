@@ -1,0 +1,8 @@
+{
+    "num_stages": 4,
+    "num_batches": 8,
+    "forward_times":  [1.0, 1.0, 1.0, 1.0],
+    "backward_times": [2.0, 2.0, 2.0, 2.0],
+    "output_file": "pipeline_1f1b.png",
+    "p2p_time": 0.0
+} 
