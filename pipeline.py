@@ -1,11 +1,8 @@
-import matplotlib.pyplot as plt
-import numpy as np
 import argparse
 import json
 import yaml
 import os
-from matplotlib.patches import Rectangle
-from typing import List, Tuple, Dict, Literal
+from typing import List, Dict 
 
 # Import visualization function from the new module
 from visualizer import visualize_pipeline_parallelism
@@ -205,7 +202,7 @@ def calculate_operation_timing(
     return schedule
 
 
-def get_bubble_rate(schedule: Dict[int, List[Dict]]):
+def get_schedule_info(schedule: Dict[int, List[Dict]]):
     num_stages = len(schedule)
 
     max_time = 0
@@ -215,7 +212,6 @@ def get_bubble_rate(schedule: Dict[int, List[Dict]]):
             if end_time > max_time:
                 max_time = end_time
 
-    print(f"Max time: {max_time}")
     total_execution_time = max_time * num_stages
 
     total_computation_time = 0
@@ -231,7 +227,11 @@ def get_bubble_rate(schedule: Dict[int, List[Dict]]):
     bubble_rate = (
         total_execution_time - total_computation_time
     ) / total_computation_time
-    return bubble_rate
+
+    return {
+        "bubble_rate": f"{bubble_rate*100:.2f}%",
+        "execution_time": f"{max_time / 1000:.2f} s",
+    }
 
 
 def read_config_file(config_path):
@@ -476,12 +476,12 @@ def main():
             )
 
     # Analyze the schedule
-    bubble_rate = get_bubble_rate(schedule)
-    print(f"Bubble rate: {bubble_rate:.4f}")
+    schedule_info = get_schedule_info(schedule)
+    print(schedule_info)
 
     return {
         "schedule": schedule,
-        "bubble_rate": bubble_rate,
+        "schedule_info": schedule_info,
         "num_stages": num_stages,
         "num_batches": num_batches,
     }
