@@ -9,6 +9,11 @@ from typing import List, Tuple, Dict, Literal
 
 # Import visualization function from the new module
 from visualizer import visualize_pipeline_parallelism
+try:
+    from dash_visualizer import visualize_pipeline_parallelism_dash, save_pipeline_visualization_plotly
+    DASH_AVAILABLE = True
+except ImportError:
+    DASH_AVAILABLE = False
 
 
 def create_1f1b_schedule(
@@ -210,6 +215,7 @@ def get_bubble_rate(schedule: Dict[int, List[Dict]]):
             if end_time > max_time:
                 max_time = end_time
 
+    print(f"Max time: {max_time}")
     total_execution_time = max_time * num_stages
 
     total_computation_time = 0
@@ -324,6 +330,9 @@ def parse_args():
         default=0.0,
         help="Time for point-to-point communication between stages",
     )
+
+    parser.add_argument("--visualizer", choices=["matplotlib", "dash", "dash-interactive"], 
+                        default="matplotlib", help="Visualization library to use")
 
     return parser.parse_args()
 
@@ -447,9 +456,24 @@ def main():
 
     # Create visualization unless --no-visualization is specified
     if not args.no_visualization:
-        visualize_pipeline_parallelism(
-            schedule=schedule, schedule_type="1f1b", output_file=output_file
-        )
+        if args.visualizer == "matplotlib" or not DASH_AVAILABLE:
+            if not DASH_AVAILABLE and args.visualizer in ["dash", "dash-interactive"]:
+                print("Warning: Dash not available. Falling back to matplotlib.")
+            visualize_pipeline_parallelism(
+                schedule=schedule, schedule_type="1f1b", output_file=output_file
+            )
+        elif args.visualizer == "dash":
+            # Get output file name without extension to use the appropriate extension
+            output_base = os.path.splitext(output_file)[0]
+            output_dash = f"{output_base}_plotly.png"
+            save_pipeline_visualization_plotly(
+                schedule=schedule, schedule_type="1f1b", output_file=output_dash
+            )
+        elif args.visualizer == "dash-interactive":
+            print("Using Dash interactive visualization")
+            visualize_pipeline_parallelism_dash(
+                schedule=schedule, schedule_type="1f1b", port=8050, debug=False
+            )
 
     # Analyze the schedule
     bubble_rate = get_bubble_rate(schedule)
