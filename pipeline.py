@@ -280,12 +280,12 @@ def parse_args():
         "--num-stages",
         "-s",
         type=int,
-        default=4,
+        default=0,
         help="Number of pipeline stages (devices)",
     )
 
     parser.add_argument(
-        "--num-batches", "-b", type=int, default=10, help="Number of micro-batches"
+        "--num-batches", "-b", type=int, default=0, help="Number of micro-batches"
     )
 
     # Forward and backward times
@@ -369,6 +369,15 @@ def main():
     backward_times = None
     output_file = "pipeline_1f1b.png"
     p2p_time = 0.0
+
+    # Command line arguments override config file
+    num_stages = args.num_stages
+    num_batches = args.num_batches
+    forward_times = args.forward_times
+    backward_times = args.backward_times
+    output_file = args.output
+    p2p_time = args.p2p_time
+    
     # Read from config file if provided
     if args.config:
         try:
@@ -386,25 +395,6 @@ def main():
         except Exception as e:
             print(f"Error reading config file: {str(e)}")
             print("Falling back to command line arguments or defaults")
-
-    # Command line arguments override config file
-    if args.num_stages:
-        num_stages = args.num_stages
-
-    if args.num_batches:
-        num_batches = args.num_batches
-
-    if args.forward_times:
-        forward_times = args.forward_times
-
-    if args.backward_times:
-        backward_times = args.backward_times
-
-    if args.output:
-        output_file = args.output
-
-    if args.p2p_time:
-        p2p_time = args.p2p_time
 
     # Validate inputs
     if forward_times is None:
