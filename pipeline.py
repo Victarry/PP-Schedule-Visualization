@@ -361,8 +361,8 @@ def example_usage():
     )
 
     # Analyze the schedule
-    bubble_rate = get_bubble_rate(schedule)
-    print(f"Bubble rate: {bubble_rate:.4f}")
+    schedule_info = get_schedule_info(schedule)
+    print(schedule_info)
 
 
 def main():
