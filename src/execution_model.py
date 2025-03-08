@@ -35,7 +35,7 @@ class ScheduleConfig:
         num_stages: int,
         num_batches: int,
         p2p_latency: float = 0.0,
-        placement_strategy: str = "normal",
+        placement_strategy: str = "standard",
         op_times: Optional[Dict[str, Union[float, Dict[int, float]]]] = None,
     ):
         self.num_devices = num_devices
@@ -79,7 +79,7 @@ class ScheduleConfig:
         )
 
     def init_device_to_stages(self):
-        if self.placement_strategy == "normal":
+        if self.placement_strategy == "standard":
             # Evenly distributed
             stages_per_device = self.num_stages // self.num_devices
             self.device_to_stages = defaultdict(list)

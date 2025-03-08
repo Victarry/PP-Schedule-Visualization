@@ -29,7 +29,7 @@ def run_1f1b(cfg: DictConfig) -> None:
         num_batches=cfg.num_batches,
         p2p_latency=cfg.p2p_latency,
         op_times=op_times,
-        placement_strategy="1f1b"
+        placement_strategy="standard"
     )
     schedule = generate_1f1b_schedule(schedule_config)
     executor = ScheduleExecutor(schedule)

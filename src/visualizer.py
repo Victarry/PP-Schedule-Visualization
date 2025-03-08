@@ -298,18 +298,6 @@ def create_dash_app(schedule: Schedule, schedule_type="1f1b"):
                 ]),
             ], className="config-section"),
             
-            html.Button("Download Image", id="btn-download", 
-                        style={
-                            'marginTop': '20px',
-                            'padding': '10px',
-                            'backgroundColor': '#007BFF',
-                            'color': 'white',
-                            'border': 'none',
-                            'borderRadius': '5px',
-                            'cursor': 'pointer'
-                        }),
-                        
-            dcc.Download(id="download-image"),
         ], style={'margin': '20px'}),
         
         html.Div(id="graph-container", children=[]),
@@ -329,27 +317,6 @@ def create_dash_app(schedule: Schedule, schedule_type="1f1b"):
         # Create the figure when the app loads
         return create_pipeline_figure(schedule_data, show_progress=True)
 
-    @app.callback(
-        Output("download-image", "data"),
-        Input("btn-download", "n_clicks"),
-        prevent_initial_call=True,
-    )
-    def download_image(n_clicks):
-        # Generate the figure for download
-        fig = create_pipeline_figure(schedule_data, show_progress=True)
-        
-        # Convert to base64 image
-        img_bytes = fig.to_image(format="png", width=1600, height=1000, scale=2)
-        img_base64 = base64.b64encode(img_bytes).decode('ascii')
-        
-        # Return the download data
-        return dict(
-            content=img_base64,
-            filename=f"pipeline_visualization_{schedule_type}.png",
-            type="image/png",
-            base64=True
-        )
-    
     return app
 
 
