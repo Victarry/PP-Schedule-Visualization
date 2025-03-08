@@ -36,10 +36,13 @@ Running for 1F1B strategy:
 ```bash
 uv run python main.py strategy=1f1b num_devices=4 num_stages=4 num_batches=8
 ```
+![1f1b](assets/1f1b.png)
 
+Running for interleave strategy:
 ```bash
 uv run python main.py strategy=interleave num_devices=4 num_stages=8 num_batches=8
 ```
+![interleave](assets/interleave_1f1b.png)
 
 ## Configuration
 
