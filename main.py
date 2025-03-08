@@ -1,4 +1,4 @@
-from src.execution_model import ScheduleConfig, ScheduleExecutor
+from src.execution_model import ScheduleConfig
 from src.strategies import generate_1f1b_interleave_schedule, generate_1f1b_schedule
 from src.visualizer import visualize_pipeline_parallelism_dash
 import hydra
@@ -32,8 +32,7 @@ def run_1f1b(cfg: DictConfig) -> None:
         placement_strategy="standard"
     )
     schedule = generate_1f1b_schedule(schedule_config)
-    executor = ScheduleExecutor(schedule)
-    executor.execute()
+    schedule.execute()
 
     visualize_pipeline_parallelism_dash(schedule, port=cfg.visualization_port)
 
@@ -52,9 +51,7 @@ def run_interleave(cfg: DictConfig) -> None:
         op_times=op_times
     )
     schedule = generate_1f1b_interleave_schedule(schedule_config)
-    executor = ScheduleExecutor(schedule)
-    executor.execute()
-
+    schedule.execute()
     visualize_pipeline_parallelism_dash(schedule, port=cfg.visualization_port)
 
 
