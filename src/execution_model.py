@@ -184,15 +184,10 @@ class Schedule:
         if all(op.end_time is not None for op in self.ops.values()):
             total_time = max(op.end_time for op in self.ops.values())
             print(f"\nTotal execution time: {total_time:.2f}")
-
-
-class ScheduleExecutor:
-    def __init__(self, schedule: Schedule):
-        self.schedule = schedule
-
+    
     def execute(self):
         def execute_op(op: Operation):
-            deps = self.schedule.get_dependencies(op)
+            deps = self.get_dependencies(op)
             if len(deps) == 0:
                 op.start_time = 0.0
             else:
@@ -200,20 +195,23 @@ class ScheduleExecutor:
                     if dep.end_time is None or dep.start_time is None:
                         execute_op(dep)
                 op.start_time = max(dep.end_time + gap for dep, gap in deps)
-            op.end_time = op.start_time + self.schedule.config.get_op_time(
+            op.end_time = op.start_time + self.config.get_op_time(
                 op.op_type, op.stage_id
             )
 
-        op_num = len(self.schedule.dev_queues[0].ops)
+        op_num = len(self.dev_queues[0].ops)
         for i in range(op_num):
-            for dev_id in range(self.schedule.config.num_devices):
-                op = self.schedule.dev_queues[dev_id].ops[i]
+            for dev_id in range(self.config.num_devices):
+                op = self.dev_queues[dev_id].ops[i]
                 execute_op(op)
 
-        for op in self.schedule.ops.values():
+        for op in self.ops.values():
             assert (
                 op.start_time is not None
             ), f"op {op.batch_id}, {op.stage_id}, {op.op_type} has no start time"
             assert (
                 op.end_time is not None
             ), f"op {op.batch_id}, {op.stage_id}, {op.op_type} has no end time"
+
+    def get_total_execution_time(self):
+        return max(op.end_time for op in self.ops.values())
