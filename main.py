@@ -1,6 +1,6 @@
 from src.execution_model import ScheduleConfig, ScheduleExecutor
 from src.strategies import generate_1f1b_interleave_schedule, generate_1f1b_schedule
-from src.visualizer import visualize_pipeline_parallelism_dash, save_pipeline_visualization_plotly
+from src.visualizer import visualize_pipeline_parallelism_dash
 import hydra
 from omegaconf import DictConfig, OmegaConf
 

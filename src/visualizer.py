@@ -55,24 +55,42 @@ def create_pipeline_figure(schedule_data: Dict[int, List[Dict]], max_time=None, 
     empty_color = "whitesmoke"
     # Colors for task types
     def get_color(op_type: str, stage_id: int):
-        # Base colors
-        forward_base_color = "royalblue"
-        backward_base_color = "lightgreen"  # Changed from sandybrown to match your visualization
+        # Color palettes for different virtual stages
+        forward_colors = [
+            "royalblue",      # Stage 0
+            "lightskyblue",   # Stage 1
+            "cornflowerblue", # Stage 2
+            "steelblue",      # Stage 3
+            "dodgerblue",     # Stage 4
+            "deepskyblue",    # Stage 5
+            "mediumblue",     # Stage 6
+            "mediumslateblue",# Stage 7
+            "slateblue",      # Stage 8
+            "darkslateblue"   # Stage 9
+        ]
         
+        backward_colors = [
+            "lightgreen",     # Stage 0
+            "mediumseagreen", # Stage 1
+            "seagreen",       # Stage 2
+            "lightseagreen",  # Stage 3
+            "mediumaquamarine", # Stage 4
+            "mediumspringgreen", # Stage 5
+            "springgreen",    # Stage 6
+            "palegreen",      # Stage 7
+            "limegreen",      # Stage 8
+            "forestgreen"     # Stage 9
+        ]
+
         virtual_stage = stage_id // num_devices
 
+        # If virtual_stage is beyond our color list, cycle through the colors
+        color_index = virtual_stage % len(forward_colors)
+
         if op_type == "forward":
-            if virtual_stage == 0:
-                return forward_base_color
-            else:
-                # Lighter shade for virtual_stage > 0
-                return "lightskyblue"
+            return forward_colors[color_index]
         elif op_type == "backward":
-            if virtual_stage == 0:
-                return backward_base_color
-            else:
-                # Lighter shade for virtual_stage > 0
-                return "lightseagreen"
+            return backward_colors[color_index]
         else:
             raise ValueError(f"Invalid operation type: {op_type}")
 
@@ -165,10 +183,32 @@ def create_pipeline_figure(schedule_data: Dict[int, List[Dict]], max_time=None, 
                 progress_bar.update(1)
 
     # Add custom legend
-    legend_items = [
-        dict(name="Forward", color=get_color("forward", 0)),
-        dict(name="Backward", color=get_color("backward", 0)),
-    ]
+    legend_items = []
+    
+    # Find the maximum virtual stage in the data
+    max_virtual_stage = 0
+    for device in schedule_data:
+        for task in schedule_data[device]:
+            virtual_stage = task["stage"] // num_devices
+            max_virtual_stage = max(max_virtual_stage, virtual_stage)
+    
+    # Add forward and backward items for each virtual stage
+    for vs in range(max_virtual_stage + 1):
+        legend_items.append(dict(
+            name=f"Forward (VS {vs})", 
+            color=get_color("forward", vs * num_devices)
+        ))
+        legend_items.append(dict(
+            name=f"Backward (VS {vs})", 
+            color=get_color("backward", vs * num_devices)
+        ))
+    
+    # If no tasks found, add default legend items
+    if not legend_items:
+        legend_items = [
+            dict(name="Forward (VS 0)", color=get_color("forward", 0)),
+            dict(name="Backward (VS 0)", color=get_color("backward", 0)),
+        ]
     
     for i, item in enumerate(legend_items):
         fig.add_trace(go.Scatter(
@@ -209,14 +249,17 @@ def create_pipeline_figure(schedule_data: Dict[int, List[Dict]], max_time=None, 
             font=dict(size=20)
         ),
         legend=dict(
-            orientation="h",
+            orientation="v",  # Changed from horizontal to vertical
             yanchor="top",
-            y=-0.1,  # Position below the plot
-            xanchor="center",
-            x=0.5
+            y=1.02,  # Position at the top
+            xanchor="right",
+            x=1.15,   # Position to the right of the plot
+            title=dict(text="<b>Operation Types:</b>"),
+            itemsizing="constant",
+            tracegroupgap=0
         ),
-        width=1600, 
-        height=400,  # Reduce height to make the visualization more compact
+        width=1800,  # Increase width to accommodate the legend
+        height=400,  # Maintain current height
         bargap=0,
         bargroupgap=0,
     )
@@ -285,7 +328,7 @@ def create_dash_app(schedule: Schedule, schedule_type="1f1b"):
     def load_graph(_):
         # Create the figure when the app loads
         return create_pipeline_figure(schedule_data, show_progress=True)
-        
+
     @app.callback(
         Output("download-image", "data"),
         Input("btn-download", "n_clicks"),
@@ -326,23 +369,3 @@ def visualize_pipeline_parallelism_dash(
     app = create_dash_app(schedule)
     print(f"Starting Dash app on http://localhost:{port}/")
     app.run_server(debug=debug, port=port)
-
-
-def save_pipeline_visualization_plotly(
-    schedule: Schedule,
-    output_file: str = "pipeline_visualization_plotly.png",
-):
-    """
-    Save a static image of the pipeline schedule visualization.
-    
-    Args:
-        schedule: Schedule object to visualize
-        output_file: Path to save the image to
-    """
-    schedule_data = convert_schedule_to_visualization_format(schedule)
-    fig = create_pipeline_figure(schedule_data, show_progress=True)
-    
-    print(f"Saving visualization to {output_file}...")
-    fig.write_image(output_file, width=1600, height=400, scale=2)
-    print(f"Visualization saved to {output_file}")
-
