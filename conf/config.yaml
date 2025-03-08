@@ -1,0 +1,22 @@
+# Default configuration for Pipeline Parallelism Emulation
+num_devices: 4
+num_stages: 4
+num_batches: 12
+visualization_port: 8050
+strategy: "1f1b"  # Options: "1f1b", "interleave"
+p2p_latency: 0.0
+
+# Operation time configurations
+op_times:
+  # Option 1: Simple configuration (same time for all stages)
+  forward: 1.0
+  backward: 2.0
+  
+  # Option 2: Commented example of stage-specific configuration
+  # forward:
+  #   0: 0.8  # Stage 0 forward time
+  #   1: 1.2  # Stage 1 forward time
+  #   2: 1.5  # Stage 2 forward time
+  #   3: 0.9  # Stage 3 forward time
+  # backward:
+  #   0: 1.0  # Stage 0 backward time

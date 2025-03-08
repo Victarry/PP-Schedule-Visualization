@@ -1,77 +1,95 @@
-# Pipeline Parallelism Scheduler and Visualizer
+# Pipeline Parallelism Emulation
 
-This tool simulates and visualizes pipeline parallelism scheduling strategies, focusing on the 1F1B (One-Forward-One-Backward) scheduling algorithm commonly used in distributed deep learning.
+This project provides tools for emulating and visualizing pipeline parallelism strategies used in large language model training.
+
+## Overview
+
+Pipeline parallelism is a technique used to train large models by partitioning the model across multiple devices and processing data in a pipelined fashion. This project allows you to:
+
+- Simulate different pipeline parallelism strategies (1F1B, Interleaved)
+- Visualize the execution schedule on multiple devices
+- Compare different strategies for efficiency
+
+## Features
+- Supported Pipeline Stragegies:
+    - 1F1B
+    - Interleaved 1F1B
+- Visualization:
+    - Interactive visualization dashboard using Plotly/Dash
+- Config:
+    - Configurable simulation parameters through Hydra
+    - Each stage
+
+## Installation
+
+This project uses [uv](https://github.com/astral-sh/uv) for dependency management.
+
+Setup `uv` if not installed in your computer:
+```
+# On macOS and Linux.
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
 
 ## Usage
 
-### Example
+Running for 1F1B strategy:
+```bash
+uv run python main.py strategy=1f1b num_devices=4 num_stages=4 num_batches=8
+```
 
 ```bash
-python pipeline.py --num-stages 4 --num-batches 8
-```
-![Example 1F1B schedule](pipeline_1f1b.png)
-
-### Command Line Interface
-
-| Option | Short | Description |
-|--------|-------|-------------|
-| `--config` | `-c` | Path to config file (JSON or YAML) |
-| `--num-stages` | `-s` | Number of pipeline stages (devices) |
-| `--num-batches` | `-b` | Number of micro-batches |
-| `--forward-times` | `-f` | Time for forward pass at each stage (space-separated list) |
-| `--backward-times` | `-bw` | Time for backward pass at each stage (space-separated list) |
-| `--output` | `-o` | Output file path for visualization |
-| `--no-visualization` | | Skip visualization generation |
-| `--p2p-time`| | P2P communication time of PP |
-
-### Using Configuration Files
-
-You can use either JSON or YAML configuration files:
-
-Example JSON configuration (sample_config.json):
-```json
-{
-    "num_stages": 6,
-    "num_batches": 12,
-    "forward_times": [0.8, 1.0, 1.2, 1.0, 0.9, 1.1],
-    "backward_times": [1.6, 2.0, 2.4, 2.0, 1.8, 2.2],
-    "output_file": "pipeline_1f1b_custom.png"
-}
+uv run python main.py strategy=interleave num_devices=4 num_stages=8 num_batches=8
 ```
 
-Example YAML configuration (sample_config.yaml):
-```yaml
-# Pipeline Parallelism Configuration
-num_stages: 5
-num_batches: 8
-forward_times:
-  - 0.9
-  - 1.1
-  - 1.0
-  - 0.8
-  - 1.2
-backward_times:
-  - 1.8
-  - 2.2
-  - 2.0
-  - 1.6
-  - 2.4
-output_file: "pipeline_1f1b_yaml.png"
+## Configuration
+
+The default configuration is in `conf/config.yaml`. You can override any parameter on the command line or create configuration groups for different scenarios.
+
+### Using Different Configuration Files
+
+You can use different configuration files with Hydra in several ways:
+
+#### Recommended Approach
+
+1. Create multiple configuration files in the `conf` directory for different use cases:
+   ```
+   conf/
+   ├── config.yaml     # Default configuration
+   └── model_A.yaml    # Create your own config with stage-specific latency for performance projection.
+   ```
+
+2. Run with your desired configuration using the `--config-name` flag:
+   ```bash
+   uv run python main.py --config-name=model_A
+   ```
+
+#### Override Specific Parameters
+
+You can also override specific parameters at runtime:
+```bash
+uv run python main.py op_times.forward=0.5 op_times.backward=1.0 num_batches=6
 ```
 
-## About Pipeline Parallelism
+## Project Structure
 
-Pipeline parallelism is a distributed deep learning training strategy that splits model layers across multiple devices. Each device processes a different stage of the neural network, creating a pipeline where multiple micro-batches can be processed simultaneously.
+```
+PP-Emulation/
+├── conf/                   # Hydra configuration files
+│   └── config.yaml         # Default configuration
+├── src/                    # Source code
+│   ├── __init__.py         # Package initialization
+│   ├── execution_model.py  # Schedule execution models
+│   ├── strategies.py       # Pipeline parallelism strategies
+│   └── visualizer.py       # Visualization utilities
+├── main.py                 # Main entry point
+├── pyproject.toml          # Project metadata and dependencies
+└── README.md               # This file
+```
 
-The 1F1B (One-Forward-One-Backward) scheduling algorithm is an efficient strategy for pipeline parallelism that balances throughput with memory usage. It follows these phases:
-1. **Warmup Phase**: Forward passes for the first several micro-batches
-2. **Steady State**: Each device alternates between forward and backward passes
-3. **Cooldown Phase**: Backward passes to complete the computation for remaining micro-batches
+## License
 
-The "bubble rate" metric measures the inefficiency in the pipeline, representing the percentage of time devices spend idle waiting for dependencies.
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-## References
+## Contributing
 
-- PipeDream: Generalized Pipeline Parallelism for DNN Training (SOSP'19)
-- GPipe: Efficient Training of Giant Neural Networks using Pipeline Parallelism (NeurIPS'19)
-- Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism 
+Contributions are welcome! Please feel free to submit a Pull Request. 

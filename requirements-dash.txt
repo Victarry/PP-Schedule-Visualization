@@ -1,5 +1,0 @@
-dash==2.13.0
-plotly==5.18.0
-numpy
-kaleido # For static image export
-tqdm # For progress bars 
