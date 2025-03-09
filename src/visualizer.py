@@ -2,10 +2,9 @@ import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output
 import plotly.graph_objects as go
-import argparse
-from typing import List, Dict, Literal, Optional
+from typing import List, Dict
 from tqdm import tqdm
-import base64
+from functools import lru_cache
 
 from src.execution_model import Schedule
 
@@ -40,6 +39,49 @@ def convert_schedule_to_visualization_format(schedule: Schedule):
     return visualization_data
 
 
+# Cache the color calculation as it's repeatedly called with the same parameters
+@lru_cache(maxsize=128)
+def get_color(op_type: str, stage_id: int, num_devices: int):
+    # Color palettes for different virtual stages
+    forward_colors = [
+        "royalblue",      # Stage 0
+        "lightskyblue",   # Stage 1
+        "cornflowerblue", # Stage 2
+        "steelblue",      # Stage 3
+        "dodgerblue",     # Stage 4
+        "deepskyblue",    # Stage 5
+        "mediumblue",     # Stage 6
+        "mediumslateblue",# Stage 7
+        "slateblue",      # Stage 8
+        "darkslateblue"   # Stage 9
+    ]
+    
+    backward_colors = [
+        "lightgreen",     # Stage 0
+        "mediumseagreen", # Stage 1
+        "seagreen",       # Stage 2
+        "lightseagreen",  # Stage 3
+        "mediumaquamarine", # Stage 4
+        "mediumspringgreen", # Stage 5
+        "springgreen",    # Stage 6
+        "palegreen",      # Stage 7
+        "limegreen",      # Stage 8
+        "forestgreen"     # Stage 9
+    ]
+
+    virtual_stage = stage_id // num_devices
+
+    # If virtual_stage is beyond our color list, cycle through the colors
+    color_index = virtual_stage % len(forward_colors)
+
+    if op_type == "forward":
+        return forward_colors[color_index]
+    elif op_type == "backward":
+        return backward_colors[color_index]
+    else:
+        raise ValueError(f"Invalid operation type: {op_type}")
+
+
 def create_pipeline_figure(schedule_data: Dict[int, List[Dict]], max_time=None, show_progress=True):
     """
     Create a Plotly figure for pipeline parallelism scheduling.
@@ -51,49 +93,9 @@ def create_pipeline_figure(schedule_data: Dict[int, List[Dict]], max_time=None, 
     """
     # Find the number of devices
     num_devices = len(schedule_data)
-
+    
     empty_color = "whitesmoke"
-    # Colors for task types
-    def get_color(op_type: str, stage_id: int):
-        # Color palettes for different virtual stages
-        forward_colors = [
-            "royalblue",      # Stage 0
-            "lightskyblue",   # Stage 1
-            "cornflowerblue", # Stage 2
-            "steelblue",      # Stage 3
-            "dodgerblue",     # Stage 4
-            "deepskyblue",    # Stage 5
-            "mediumblue",     # Stage 6
-            "mediumslateblue",# Stage 7
-            "slateblue",      # Stage 8
-            "darkslateblue"   # Stage 9
-        ]
-        
-        backward_colors = [
-            "lightgreen",     # Stage 0
-            "mediumseagreen", # Stage 1
-            "seagreen",       # Stage 2
-            "lightseagreen",  # Stage 3
-            "mediumaquamarine", # Stage 4
-            "mediumspringgreen", # Stage 5
-            "springgreen",    # Stage 6
-            "palegreen",      # Stage 7
-            "limegreen",      # Stage 8
-            "forestgreen"     # Stage 9
-        ]
-
-        virtual_stage = stage_id // num_devices
-
-        # If virtual_stage is beyond our color list, cycle through the colors
-        color_index = virtual_stage % len(forward_colors)
-
-        if op_type == "forward":
-            return forward_colors[color_index]
-        elif op_type == "backward":
-            return backward_colors[color_index]
-        else:
-            raise ValueError(f"Invalid operation type: {op_type}")
-
+    
     # Find the maximum time in the schedule if not provided
     if max_time is None:
         max_time = 0
@@ -116,6 +118,11 @@ def create_pipeline_figure(schedule_data: Dict[int, List[Dict]], max_time=None, 
     # Create a custom y-axis with no gaps between devices
     y_spacing = 1.0  # Use 1.0 for no gaps
 
+    # Batch processing for increased performance
+    shapes = []
+    annotations = []
+    hover_traces = []
+
     # Add rectangles for each task
     for device_idx, device in enumerate(schedule_data):
         device_idx_reversed = num_devices - device_idx - 1
@@ -126,11 +133,11 @@ def create_pipeline_figure(schedule_data: Dict[int, List[Dict]], max_time=None, 
         for task in sorted_tasks:
             # Determine task color and text color
             if task["type"] == "forward":
-                color = get_color(task["type"], task["stage"])
+                color = get_color(task["type"], task["stage"], num_devices)
                 text_color = "white"
                 name = "Forward"
             elif task["type"] == "backward":
-                color = get_color(task["type"], task["stage"])
+                color = get_color(task["type"], task["stage"], num_devices)
                 text_color = "black"
                 name = "Backward"
             else:
@@ -145,8 +152,8 @@ def create_pipeline_figure(schedule_data: Dict[int, List[Dict]], max_time=None, 
             # Calculate y positions with no gaps
             y_pos = device_idx_reversed * y_spacing
             
-            # Create rectangle using shape
-            fig.add_shape(
+            # Create rectangle using shape (batch-add later)
+            shapes.append(dict(
                 type="rect",
                 x0=start_time,
                 y0=y_pos - 0.5,
@@ -155,25 +162,27 @@ def create_pipeline_figure(schedule_data: Dict[int, List[Dict]], max_time=None, 
                 line=dict(color="black", width=0.5),
                 fillcolor=color,
                 layer="above",
-            )
+            ))
             
-            # Add batch number text
-            fig.add_annotation(
+            # Add batch number text (batch-add later)
+            annotations.append(dict(
                 x=start_time + duration / 2,
                 y=y_pos,
-                text=f"{task['batch']}",  # Only show batch ID
+                text=f"{task['batch']}",  
                 showarrow=False,
-                font=dict(color=text_color, size=12, family="Arial, bold"),  # Increased font size
-            )
+                font=dict(color=text_color, size=12, family="Arial, bold"),
+            ))
             
-            # Add hover data with additional details
-            fig.add_trace(go.Scatter(
+            # Prepare hover data (add traces in batches later)
+            hover_text = f"Batch: {task['batch']}<br>Stage: {task['stage']}<br>Type: {name}<br>Start: {task['start_time']:.2f}<br>End: {task['start_time'] + task['duration']:.2f}<br>Duration: {task['duration']:.2f}"
+            
+            hover_traces.append(dict(
                 x=[start_time + duration / 2],
                 y=[y_pos],
                 mode='markers',
                 marker=dict(opacity=0),  # Invisible marker
                 hoverinfo='text',
-                text=f"Batch: {task['batch']}<br>Stage: {task['stage']}<br>Type: {name}<br>Start: {task['start_time']:.2f}<br>End: {task['start_time'] + task['duration']:.2f}<br>Duration: {task['duration']:.2f}",
+                text=hover_text,
                 showlegend=False
             ))
             
@@ -181,6 +190,16 @@ def create_pipeline_figure(schedule_data: Dict[int, List[Dict]], max_time=None, 
             if show_progress:
                 tasks_processed += 1
                 progress_bar.update(1)
+
+    # Add all shapes at once for better performance
+    fig.update_layout(shapes=shapes)
+    
+    # Add all annotations at once
+    fig.update_layout(annotations=annotations)
+    
+    # Add all hover traces at once
+    for trace in hover_traces:
+        fig.add_trace(go.Scatter(**trace))
 
     # Add custom legend
     legend_items = []
@@ -196,18 +215,18 @@ def create_pipeline_figure(schedule_data: Dict[int, List[Dict]], max_time=None, 
     for vs in range(max_virtual_stage + 1):
         legend_items.append(dict(
             name=f"Forward (VS {vs})", 
-            color=get_color("forward", vs * num_devices)
+            color=get_color("forward", vs * num_devices, num_devices)
         ))
         legend_items.append(dict(
             name=f"Backward (VS {vs})", 
-            color=get_color("backward", vs * num_devices)
+            color=get_color("backward", vs * num_devices, num_devices)
         ))
     
     # If no tasks found, add default legend items
     if not legend_items:
         legend_items = [
-            dict(name="Forward (VS 0)", color=get_color("forward", 0)),
-            dict(name="Backward (VS 0)", color=get_color("backward", 0)),
+            dict(name="Forward (VS 0)", color=get_color("forward", 0, num_devices)),
+            dict(name="Backward (VS 0)", color=get_color("backward", 0, num_devices)),
         ]
     
     for i, item in enumerate(legend_items):
@@ -232,6 +251,8 @@ def create_pipeline_figure(schedule_data: Dict[int, List[Dict]], max_time=None, 
     # Adjust the range to ensure there are no empty spaces at the end
     x_end = max_time * 1.05  # Add a small margin
 
+    title_text = "Pipeline Parallelism Schedule"
+
     fig.update_layout(
         yaxis=dict(
             tickmode="array",
@@ -243,7 +264,7 @@ def create_pipeline_figure(schedule_data: Dict[int, List[Dict]], max_time=None, 
         margin=dict(l=50, r=20, t=40, b=40),
         plot_bgcolor="white",
         title=dict(
-            text="Pipeline Parallelism Schedule",
+            text=title_text,
             x=0.5,
             y=0.98,  # Move title position closer to the top
             font=dict(size=20)
@@ -271,42 +292,62 @@ def create_pipeline_figure(schedule_data: Dict[int, List[Dict]], max_time=None, 
     return fig
 
 
-def create_dash_app(schedule: Schedule, schedule_type="1f1b"):
+# Cache for storing processed schedule data
+_schedule_data_cache = {}
+
+def create_dash_app(schedule: Schedule, schedule_type="1f1b", enable_caching: bool = True):
     """
     Create a Dash app to visualize the pipeline schedule.
     
     Args:
         schedule: Schedule object to visualize
-        schedule_type: Type of schedule ("1f1b" or other)
+        schedule_type: Type of schedule ("1f1b" or custom description)
+        enable_caching: Whether to cache the schedule data and figure
     """
-    # Convert schedule to visualization format
-    schedule_data = convert_schedule_to_visualization_format(schedule)
+    # Process schedule data only once and cache it
+    global _schedule_data_cache
+    cache_key = id(schedule)
     
-    # Create the app
-    app = dash.Dash(__name__, title=f"Pipeline Parallelism Visualizer - {schedule_type}")
+    if enable_caching and cache_key in _schedule_data_cache:
+        schedule_data = _schedule_data_cache[cache_key]
+        print("Using cached schedule data")
+    else:
+        schedule_data = convert_schedule_to_visualization_format(schedule)
+        if enable_caching:
+            _schedule_data_cache[cache_key] = schedule_data
+            print("Cached schedule data")
     
+    total_tasks = sum(len(tasks) for tasks in schedule_data.values())
+    print(f"Total tasks in schedule: {total_tasks}")
+
+    app = dash.Dash(__name__)
+    app.title = f"Pipeline Parallelism Visualization - {schedule_type}"
+
+    # Create a more informative layout with data size information
     app.layout = html.Div([
-        html.H1(f"Pipeline Parallelism Visualizer - {schedule_type}", style={'textAlign': 'center'}),
+        html.H1(f"Pipeline Parallelism Visualization - {schedule_type}", style={"textAlign": "center"}),
         
         html.Div([
-            html.Div([
-                html.H3("Schedule Configuration:"),
-                html.Ul([
-                    html.Li(f"Number of devices: {schedule.config.num_devices}"),
-                    html.Li(f"Number of stages: {schedule.config.num_stages}"),
-                    html.Li(f"Number of batches: {schedule.config.num_batches}"),
-                ]),
-            ], className="config-section"),
-            
-        ], style={'margin': '20px'}),
+            html.P(f"Number of devices: {len(schedule_data)}", style={"display": "inline-block", "marginRight": "20px"}),
+            html.P(f"Total tasks: {total_tasks}", style={"display": "inline-block", "marginRight": "20px"}),
+        ], style={"marginBottom": "20px"}),
         
         html.Div(id="graph-container", children=[]),
         
-        dcc.Graph(
-            id="pipeline-graph",
-            config={'displayModeBar': True, 'toImageButtonOptions': {'format': 'png', 'filename': 'pipeline_visualization'}}
+        dcc.Loading(
+            id="loading-graph",
+            type="circle",
+            children=[
+                dcc.Graph(
+                    id="pipeline-graph",
+                    config={'displayModeBar': True, 'toImageButtonOptions': {'format': 'png', 'filename': 'pipeline_visualization'}}
+                ),
+            ]
         ),
     ])
+    
+    # Cache for storing figure to avoid regenerating it
+    figure_cache = {}
     
     @app.callback(
         Output("pipeline-graph", "figure"),
@@ -314,8 +355,21 @@ def create_dash_app(schedule: Schedule, schedule_type="1f1b"):
         prevent_initial_call=False,
     )
     def load_graph(_):
-        # Create the figure when the app loads
-        return create_pipeline_figure(schedule_data, show_progress=True)
+        # Use cached figure if available
+        cache_key = f"{id(schedule)}"
+        if enable_caching and cache_key in figure_cache:
+            print("Using cached figure")
+            return figure_cache[cache_key]
+        
+        # Create the figure
+        figure = create_pipeline_figure(schedule_data, show_progress=True)
+        
+        # Cache the figure
+        if enable_caching:
+            figure_cache[cache_key] = figure
+            print("Cached figure")
+            
+        return figure
 
     return app
 
@@ -323,7 +377,8 @@ def create_dash_app(schedule: Schedule, schedule_type="1f1b"):
 def visualize_pipeline_parallelism_dash(
     schedule: Schedule,
     port: int = 8050,
-    debug: bool = False
+    debug: bool = False,
+    enable_caching: bool = True
 ):
     """
     Launch a Dash app to visualize the pipeline schedule interactively.
@@ -332,7 +387,8 @@ def visualize_pipeline_parallelism_dash(
         schedule: Schedule object to visualize
         port: Port to run the Dash app on
         debug: Whether to run the Dash app in debug mode
+        enable_caching: Whether to cache schedule data and figures
     """
-    app = create_dash_app(schedule)
+    app = create_dash_app(schedule, enable_caching=enable_caching)
     print(f"Starting Dash app on http://localhost:{port}/")
     app.run_server(debug=debug, port=port)
