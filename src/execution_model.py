@@ -43,13 +43,13 @@ class ScheduleConfig:
         self.num_batches = num_batches
         self.p2p_latency = p2p_latency
         self.placement_strategy = placement_strategy
-        
+
         # Initialize default operation times
         self.op_times = {
             "forward": 1.0,
             "backward": 2.0,
         }
-        
+
         # Update with user-provided operation times
         if op_times:
             for op_type, times in op_times.items():
@@ -215,3 +215,13 @@ class Schedule:
 
     def get_total_execution_time(self):
         return max(op.end_time for op in self.ops.values())
+    
+    def get_bubble_rate(self):
+        actual_time = self.get_total_execution_time()
+        ideal_time = 0
+        for stage_id in range(self.config.num_stages):
+            for op_type in ["forward", "backward"]:
+                ideal_time += self.config.get_op_time(op_type, stage_id)
+        ideal_time = ideal_time * self.config.num_batches / self.config.num_devices
+
+        return (actual_time - ideal_time) / ideal_time
