@@ -44,6 +44,11 @@ uv run python main.py strategy=interleave num_devices=4 num_stages=8 num_batches
 ```
 ![interleave](assets/interleave_1f1b.png)
 
+Running for ZB-1P strategy:
+```bash
+uv run python main.py strategy=zb1p num_devices=4 num_stages=8 num_batches=8
+```
+
 ## Configuration
 
 The default configuration is in `conf/config.yaml`. You can override any parameter on the command line or create configuration groups for different scenarios.

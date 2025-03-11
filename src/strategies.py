@@ -5,6 +5,8 @@ from src.execution_model import Schedule, ScheduleConfig
 def generate_1f1b_schedule(config: ScheduleConfig):
     schedule = Schedule(config)
 
+    assert config.num_devices == config.num_stages, "num_devices must be equal to num_stages for 1F1B"
+
     for i in range(config.num_devices):
         fwd_batch_id = 0
         bwd_batch_id = 0
@@ -12,30 +14,82 @@ def generate_1f1b_schedule(config: ScheduleConfig):
         steady_batches = config.num_batches - warmup_batches
 
         for _ in range(warmup_batches):
-            for j in range(len(schedule.dev_queues[i].stages)):
-                schedule.dev_queues[i].add_operation(
-                    schedule.get_op(fwd_batch_id, schedule.dev_queues[i].stages[j], "forward")
-                )
+            schedule.dev_queues[i].add_operation(
+                schedule.get_op(fwd_batch_id, i, "forward")
+            )
             fwd_batch_id += 1
 
         for _ in range(steady_batches):
-            for j in range(len(schedule.dev_queues[i].stages)):
-                schedule.dev_queues[i].add_operation(
-                    schedule.get_op(fwd_batch_id, schedule.dev_queues[i].stages[j], "forward")
-                )
+            schedule.dev_queues[i].add_operation(
+                schedule.get_op(fwd_batch_id, i, "forward")
+            )
             fwd_batch_id += 1
-            for j in range(len(schedule.dev_queues[i].stages)-1, -1, -1):
-                schedule.dev_queues[i].add_operation(
-                    schedule.get_op(bwd_batch_id, schedule.dev_queues[i].stages[j], "backward")
-                )
+            schedule.dev_queues[i].add_operation(
+                schedule.get_op(bwd_batch_id, i, "backward")
+            )
             bwd_batch_id += 1
 
         for _ in range(cooldown_batches):
-            for j in range(len(schedule.dev_queues[i].stages)-1, -1, -1):
-                schedule.dev_queues[i].add_operation(
-                    schedule.get_op(bwd_batch_id, schedule.dev_queues[i].stages[j], "backward")
-                )
+            schedule.dev_queues[i].add_operation(
+                schedule.get_op(bwd_batch_id, i, "backward")
+            )
             bwd_batch_id += 1
+
+    return schedule
+
+
+def generate_zero_bubble_1p_schedule(config: ScheduleConfig):
+    # Create a new schedule with split_backward=True to support backward_D and backward_W operations
+    schedule = Schedule(config)
+    total_batches = config.num_batches
+    assert config.num_devices == config.num_stages, "num_devices must be equal to num_stages for ZB-1P"
+
+    for i in range(config.num_devices):
+        fwd_batch_id = 0
+        bwd_d_batch_id = 0
+        bwd_w_batch_id = 0
+
+        cooldown_batches = warmup_batches = config.num_devices - i - 1
+        steady_batches = total_batches - warmup_batches
+
+        for _ in range(warmup_batches):
+            schedule.dev_queues[i].add_operation(
+                schedule.get_op(fwd_batch_id, i, "forward")
+            )
+            fwd_batch_id += 1
+
+        for _ in range(steady_batches):
+            schedule.dev_queues[i].add_operation(
+                schedule.get_op(fwd_batch_id, i, "forward")
+            )
+            schedule.dev_queues[i].add_operation(
+                schedule.get_op(bwd_d_batch_id, i, "backward_D")
+            )
+            if fwd_batch_id - bwd_w_batch_id >= config.num_devices - 1:
+                schedule.dev_queues[i].add_operation(
+                    schedule.get_op(bwd_w_batch_id, i, "backward_W")
+                )
+                bwd_w_batch_id += 1
+            bwd_d_batch_id += 1
+            fwd_batch_id += 1
+        
+        for _ in range(cooldown_batches):
+            schedule.dev_queues[i].add_operation(
+                schedule.get_op(bwd_d_batch_id, i, "backward_D")
+            )
+
+            schedule.dev_queues[i].add_operation(
+                schedule.get_op(bwd_w_batch_id, i, "backward_W")
+            )
+
+            bwd_w_batch_id += 1
+            bwd_d_batch_id += 1
+        
+        while bwd_w_batch_id < total_batches:
+            schedule.dev_queues[i].add_operation(
+                schedule.get_op(bwd_w_batch_id, i, "backward_W")
+            )
+            bwd_w_batch_id += 1
 
     return schedule
 
