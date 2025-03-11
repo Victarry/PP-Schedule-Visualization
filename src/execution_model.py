@@ -36,6 +36,7 @@ class ScheduleConfig:
         num_batches: int,
         p2p_latency: float = 0.0,
         placement_strategy: str = "standard",
+        split_backward: bool = False,
         op_times: Optional[Dict[str, Union[float, Dict[int, float]]]] = None,
     ):
         self.num_devices = num_devices
@@ -43,12 +44,20 @@ class ScheduleConfig:
         self.num_batches = num_batches
         self.p2p_latency = p2p_latency
         self.placement_strategy = placement_strategy
+        self.split_backward = split_backward
 
         # Initialize default operation times
-        self.op_times = {
-            "forward": 1.0,
-            "backward": 2.0,
-        }
+        if self.split_backward:
+            self.op_times = {
+                "forward": 1.0,
+                "backward_D": 1.0,
+                "backward_W": 1.0,
+            }
+        else:
+            self.op_times = {
+                "forward": 1.0,
+                "backward": 2.0,
+            }
 
         # Update with user-provided operation times
         if op_times:
@@ -119,9 +128,10 @@ class Schedule:
 
         self.init_operations()
 
-    def init_operations(self, op_types: Optional[List[str]] = None):
-        if op_types is None:
-            op_types = ["forward", "backward"]
+    def init_operations(self):
+        op_types = ["forward", "backward"]
+        if self.config.split_backward:
+            op_types = ["forward", "backward_D", "backward_W"]
         for batch_id in range(self.config.num_batches):
             for stage_id in range(self.config.num_stages):
                 for op_type in op_types:
@@ -142,14 +152,32 @@ class Schedule:
                         self.config.p2p_latency,
                     )
                 )
-        elif op.op_type == "backward":
-            if op.stage_id < self.config.num_stages - 1:
-                deps.append(
-                    (
-                        self.get_op(op.batch_id, op.stage_id + 1, "backward"),
-                        self.config.p2p_latency,
+        if self.config.split_backward:
+            if op.op_type == "backward_D":
+                if op.stage_id < self.config.num_stages - 1:
+                    deps.append(
+                        (
+                            self.get_op(op.batch_id, op.stage_id + 1, "backward_D"),
+                            self.config.p2p_latency,
+                        )
                     )
-                )
+            elif op.op_type == "backward_W":
+                if op.stage_id < self.config.num_stages - 1:
+                    deps.append(
+                        (
+                            self.get_op(op.batch_id, op.stage_id, "backward_D"),
+                            self.config.p2p_latency,
+                        )
+                    )
+        else:
+            if op.op_type == "backward":
+                if op.stage_id < self.config.num_stages - 1:
+                    deps.append(
+                        (
+                            self.get_op(op.batch_id, op.stage_id + 1, "backward"),
+                            self.config.p2p_latency,
+                        )
+                    )
 
         device_index = self.dev_queues[op.device_id].ops.index(op)
         if device_index > 0:
@@ -170,7 +198,7 @@ class Schedule:
             print("-" * 80)
             
             for op in self.dev_queues[dev_id].ops:
-                op_type = "Forward" if op.op_type == "forward" else "Backward"
+                op_type = op.op_type
                 start = f"{op.start_time:.2f}" if op.start_time is not None else "N/A"
                 end = f"{op.end_time:.2f}" if op.end_time is not None else "N/A"
                 

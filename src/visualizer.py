@@ -45,10 +45,10 @@ def get_color(op_type: str, stage_id: int, num_devices: int):
     # Color palettes for different virtual stages
     forward_colors = [
         "royalblue",      # Stage 0
-        "lightskyblue",   # Stage 1
-        "cornflowerblue", # Stage 2
+        "cornflowerblue", # Stage 1
+        "dodgerblue",     # Stage 2
         "steelblue",      # Stage 3
-        "dodgerblue",     # Stage 4
+        "lightskyblue",   # Stage 4
         "deepskyblue",    # Stage 5
         "mediumblue",     # Stage 6
         "mediumslateblue",# Stage 7
@@ -56,17 +56,46 @@ def get_color(op_type: str, stage_id: int, num_devices: int):
         "darkslateblue"   # Stage 9
     ]
     
+    # Updated to orange/brown palette for backward operations
     backward_colors = [
-        "lightgreen",     # Stage 0
-        "mediumseagreen", # Stage 1
-        "seagreen",       # Stage 2
-        "lightseagreen",  # Stage 3
-        "mediumaquamarine", # Stage 4
-        "mediumspringgreen", # Stage 5
-        "springgreen",    # Stage 6
+        "darkorange",     # Stage 0
+        "orange",         # Stage 1
+        "sandybrown",     # Stage 2
+        "peru",           # Stage 3
+        "chocolate",      # Stage 4
+        "sienna",         # Stage 5
+        "saddlebrown",    # Stage 6
+        "brown",          # Stage 7
+        "darkgoldenrod",  # Stage 8
+        "goldenrod"       # Stage 9
+    ]
+    
+    # Updated to teal/turquoise palette for backward_D operations
+    backward_d_colors = [
+        "mediumaquamarine", # Stage 8
+        "cadetblue",      # Stage 2
+        "lightseagreen",  # Stage 6
+        "cyan",           # Stage 0
+        "teal",           # Stage 1
+        "mediumturquoise",# Stage 3
+        "turquoise",      # Stage 4
+        "aquamarine",     # Stage 5
+        "darkturquoise",  # Stage 7
+        "paleturquoise"   # Stage 9
+    ]
+    
+    # Updated to green palette for backward_W operations
+    backward_w_colors = [
+        "limegreen",      # Stage 2
+        "forestgreen",    # Stage 0
+        "green",          # Stage 1
+        "seagreen",       # Stage 3
+        "mediumseagreen", # Stage 4
+        "springgreen",    # Stage 5
+        "mediumspringgreen", # Stage 6
         "palegreen",      # Stage 7
-        "limegreen",      # Stage 8
-        "forestgreen"     # Stage 9
+        "lightgreen",     # Stage 8
+        "darkseagreen"    # Stage 9
     ]
 
     virtual_stage = stage_id // num_devices
@@ -78,6 +107,10 @@ def get_color(op_type: str, stage_id: int, num_devices: int):
         return forward_colors[color_index]
     elif op_type == "backward":
         return backward_colors[color_index]
+    elif op_type == "backward_D":
+        return backward_d_colors[color_index]
+    elif op_type == "backward_W":
+        return backward_w_colors[color_index]
     else:
         raise ValueError(f"Invalid operation type: {op_type}")
 
@@ -129,7 +162,7 @@ def create_pipeline_figure(schedule_data: Dict[int, List[Dict]], max_time=None, 
         
         # Sort tasks by start time to ensure correct rendering
         sorted_tasks = sorted(schedule_data[device], key=lambda t: t["start_time"])
-        
+
         for task in sorted_tasks:
             # Determine task color and text color
             if task["type"] == "forward":
@@ -140,6 +173,14 @@ def create_pipeline_figure(schedule_data: Dict[int, List[Dict]], max_time=None, 
                 color = get_color(task["type"], task["stage"], num_devices)
                 text_color = "black"
                 name = "Backward"
+            elif task["type"] == "backward_D":
+                color = get_color(task["type"], task["stage"], num_devices)
+                text_color = "black"
+                name = "Backward (Grad)"
+            elif task["type"] == "backward_W":
+                color = get_color(task["type"], task["stage"], num_devices)
+                text_color = "black"
+                name = "Backward (Weight)"
             else:
                 color = empty_color
                 text_color = "black"
@@ -221,12 +262,24 @@ def create_pipeline_figure(schedule_data: Dict[int, List[Dict]], max_time=None, 
             name=f"Backward (VS {vs})", 
             color=get_color("backward", vs * num_devices, num_devices)
         ))
+        # Add entries for split backward operations if this is a zb1p schedule
+        if any(task["type"] in ["backward_D", "backward_W"] for device in schedule_data for task in schedule_data[device]):
+            legend_items.append(dict(
+                name=f"Backward Grad (VS {vs})", 
+                color=get_color("backward_D", vs * num_devices, num_devices)
+            ))
+            legend_items.append(dict(
+                name=f"Backward Weight (VS {vs})", 
+                color=get_color("backward_W", vs * num_devices, num_devices)
+            ))
     
     # If no tasks found, add default legend items
     if not legend_items:
         legend_items = [
             dict(name="Forward (VS 0)", color=get_color("forward", 0, num_devices)),
             dict(name="Backward (VS 0)", color=get_color("backward", 0, num_devices)),
+            dict(name="Backward Grad (VS 0)", color=get_color("backward_D", 0, num_devices)),
+            dict(name="Backward Weight (VS 0)", color=get_color("backward_W", 0, num_devices)),
         ]
     
     for i, item in enumerate(legend_items):
@@ -277,12 +330,12 @@ def create_pipeline_figure(schedule_data: Dict[int, List[Dict]], max_time=None, 
             yanchor="top",
             y=1.02,  # Position at the top
             xanchor="right",
-            x=1.15,   # Position to the right of the plot
+            x=1.20,   # Position further to the right to accommodate more items
             title=dict(text="<b>Operation Types:</b>"),
             itemsizing="constant",
             tracegroupgap=0
         ),
-        width=1800,  # Increase width to accommodate the legend
+        width=2000,  # Increase width to accommodate the expanded legend
         height=400,  # Maintain current height
         bargap=0,
         bargroupgap=0,
@@ -304,7 +357,7 @@ def create_dash_app(schedule: Schedule, schedule_type="1f1b", enable_caching: bo
     
     Args:
         schedule: Schedule object to visualize
-        schedule_type: Type of schedule ("1f1b" or custom description)
+        schedule_type: Type of schedule ("1f1b", "zb1p", or custom description)
         enable_caching: Whether to cache the schedule data and figure
     """
     # Process schedule data only once and cache it
@@ -381,7 +434,8 @@ def visualize_pipeline_parallelism_dash(
     schedule: Schedule,
     port: int = 8050,
     debug: bool = False,
-    enable_caching: bool = True
+    enable_caching: bool = True,
+    schedule_type="1f1b"
 ):
     """
     Launch a Dash app to visualize the pipeline schedule interactively.
@@ -391,7 +445,8 @@ def visualize_pipeline_parallelism_dash(
         port: Port to run the Dash app on
         debug: Whether to run the Dash app in debug mode
         enable_caching: Whether to cache schedule data and figures
+        schedule_type: Type of schedule ("1f1b", "zb1p", or custom description)
     """
-    app = create_dash_app(schedule, enable_caching=enable_caching)
+    app = create_dash_app(schedule, schedule_type=schedule_type, enable_caching=enable_caching)
     print(f"Starting Dash app on http://localhost:{port}/")
     app.run_server(debug=debug, port=port)
