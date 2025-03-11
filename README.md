@@ -46,8 +46,9 @@ uv run python main.py strategy=interleave num_devices=4 num_stages=8 num_batches
 
 Running for ZB-1P strategy:
 ```bash
-uv run python main.py strategy=zb1p num_devices=4 num_stages=8 num_batches=8
+uv run python main.py strategy=zb1p num_devices=4 num_stages=4 num_batches=8
 ```
+![zb1p](assets/zb1p.png)
 
 ## Configuration
 

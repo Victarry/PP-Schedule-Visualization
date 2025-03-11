@@ -42,60 +42,60 @@ def convert_schedule_to_visualization_format(schedule: Schedule):
 # Cache the color calculation as it's repeatedly called with the same parameters
 @lru_cache(maxsize=128)
 def get_color(op_type: str, stage_id: int, num_devices: int):
-    # Color palettes for different virtual stages
+    # A more harmonious blue palette with better progression for forward operations
     forward_colors = [
-        "royalblue",      # Stage 0
-        "cornflowerblue", # Stage 1
-        "dodgerblue",     # Stage 2
-        "steelblue",      # Stage 3
-        "lightskyblue",   # Stage 4
-        "deepskyblue",    # Stage 5
-        "mediumblue",     # Stage 6
-        "mediumslateblue",# Stage 7
-        "slateblue",      # Stage 8
-        "darkslateblue"   # Stage 9
+        "#5c88f2",      # Periwinkle blue
+        "#1a53ff",      # Deep blue
+        "#b3c6ff",      # Light blue
+        "#4d79ff",      # Strong blue
+        "#809fff",      # Medium blue
+        "#0039e6",      # Rich navy
+        "#002db3",      # Dark navy
+        "#264db3",      # Royal blue
+        "#7094db",      # Steel blue
+        "#99b3e6"       # Pale blue
     ]
     
-    # Updated to orange/brown palette for backward operations
+    # Orange palette for backward operations
     backward_colors = [
-        "darkorange",     # Stage 0
-        "orange",         # Stage 1
-        "sandybrown",     # Stage 2
-        "peru",           # Stage 3
-        "chocolate",      # Stage 4
-        "sienna",         # Stage 5
-        "saddlebrown",    # Stage 6
-        "brown",          # Stage 7
-        "darkgoldenrod",  # Stage 8
-        "goldenrod"       # Stage 9
+        "#ff9933",      # Bright orange
+        "#ffad5c",      # Medium orange
+        "#ffc285",      # Light orange
+        "#ffd6ad",      # Pale orange
+        "#ff8000",      # Deep orange
+        "#cc6600",      # Dark orange
+        "#ff9933",      # Vivid orange
+        "#ffb366",      # Soft orange
+        "#cc9966",      # Muted orange
+        "#ffd699"       # Light amber
     ]
     
-    # Updated to teal/turquoise palette for backward_D operations
+    # Improved teal/turquoise palette with better progression for backward_D operations
     backward_d_colors = [
-        "mediumaquamarine", # Stage 8
-        "cadetblue",      # Stage 2
-        "lightseagreen",  # Stage 6
-        "cyan",           # Stage 0
-        "teal",           # Stage 1
-        "mediumturquoise",# Stage 3
-        "turquoise",      # Stage 4
-        "aquamarine",     # Stage 5
-        "darkturquoise",  # Stage 7
-        "paleturquoise"   # Stage 9
+        "#80ffff",      # Light cyan
+        "#00cccc",      # Teal
+        "#00e6e6",      # Bright teal
+        "#33ffff",      # Cyan
+        "#00b3b3",      # Medium teal
+        "#008080",      # Dark teal
+        "#00e6cc",      # Turquoise
+        "#4ddbbd",      # Aqua
+        "#80d4c8",      # Pale teal
+        "#b3e6e0"       # Ice
     ]
     
-    # Updated to green palette for backward_W operations
+    # Improved green palette with better progression for backward_W operations
     backward_w_colors = [
-        "limegreen",      # Stage 2
-        "forestgreen",    # Stage 0
-        "green",          # Stage 1
-        "seagreen",       # Stage 3
-        "mediumseagreen", # Stage 4
-        "springgreen",    # Stage 5
-        "mediumspringgreen", # Stage 6
-        "palegreen",      # Stage 7
-        "lightgreen",     # Stage 8
-        "darkseagreen"    # Stage 9
+        "#00cc66",      # Medium green
+        "#00e673",      # Bright green
+        "#33ff99",      # Mint green
+        "#80ffbf",      # Light green
+        "#009933",      # Forest green
+        "#006622",      # Dark green
+        "#33cc33",      # True green
+        "#66cc66",      # Sage green
+        "#99cc99",      # Pale green
+        "#c6e6c6"       # Pastel green
     ]
 
     virtual_stage = stage_id // num_devices
