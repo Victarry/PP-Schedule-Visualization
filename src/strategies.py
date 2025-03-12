@@ -94,6 +94,42 @@ def generate_zero_bubble_1p_schedule(config: ScheduleConfig):
     return schedule
 
 
+def generate_1f1b_overlap_schedule(config: ScheduleConfig):
+    schedule = Schedule(config)
+
+    assert config.num_devices == config.num_stages, "num_devices must be equal to num_stages for 1F1B"
+
+    for i in range(config.num_devices):
+        fwd_batch_id = 0
+        bwd_batch_id = 0
+        cooldown_batches = warmup_batches = 2 * (config.num_devices - i - 1) + 1
+        steady_batches = config.num_batches - warmup_batches
+
+        for _ in range(warmup_batches):
+            schedule.dev_queues[i].add_operation(
+                schedule.get_op(fwd_batch_id, i, "forward")
+            )
+            fwd_batch_id += 1
+
+        for _ in range(steady_batches):
+            schedule.dev_queues[i].add_operation(
+                schedule.get_op(fwd_batch_id, i, "forward")
+            )
+            fwd_batch_id += 1
+            schedule.dev_queues[i].add_operation(
+                schedule.get_op(bwd_batch_id, i, "backward")
+            )
+            bwd_batch_id += 1
+
+        for _ in range(cooldown_batches):
+            schedule.dev_queues[i].add_operation(
+                schedule.get_op(bwd_batch_id, i, "backward")
+            )
+            bwd_batch_id += 1
+
+    return schedule
+
+
 # Some codes are copied from Megatron-LM
 def generate_1f1b_interleave_schedule(config: ScheduleConfig):
     schedule = Schedule(config)

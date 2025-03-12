@@ -50,6 +50,13 @@ uv run python main.py strategy=zb1p num_devices=4 num_stages=4 num_batches=8
 ```
 ![zb1p](assets/zb1p.png)
 
+
+Running for 1F1B-batch-overlap strategy:
+```bah
+uv run python main.py strategy=1f1b_overlap num_devices=4 num_stages=4 num_batches=8
+```
+![1f1b_overlap](assets/1f1b_overlap.png)
+
 ## Configuration
 
 The default configuration is in `conf/config.yaml`. You can override any parameter on the command line or create configuration groups for different scenarios.
