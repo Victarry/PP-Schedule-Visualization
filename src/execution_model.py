@@ -13,7 +13,52 @@ class Operation:
 
         self.start_time = None
         self.end_time = None
+    
+    def set_end_time(self, end_time: float):
+        self.end_time = end_time
+    
+    def set_start_time(self, start_time: float):
+        self.start_time = start_time
+    
+    def __repr__(self) -> str:
+        return f"Operation(batch_id={self.batch_id}, stage_id={self.stage_id}, op_type={self.op_type})"
 
+class OverlappedOperation:
+    """Represents multiple operations that are overlapped/executed concurrently."""
+
+    def __init__(self, operations: List[Operation]):
+        self.operations = operations
+        self.device_id = operations[0].device_id
+        
+        # Validate all operations are on the same device
+        for op in operations:
+            assert op.device_id == self.device_id, "All operations must be on the same device"
+        
+        # Create a combined op_type (e.g., "overlapped_forward_backward")
+        self.op_type = "overlapped_" + "_".join([op.op_type for op in operations])
+        
+        # Use the batch_id and stage_id of the first operation for identification
+        # (though we'll track all operations internally)
+        self.batch_id = operations[0].batch_id
+        self.stage_id = operations[0].stage_id
+        
+        # Initialize timing information
+        self.start_time = None
+        self.end_time = None
+    
+    def set_end_time(self, end_time: float):
+        self.end_time = end_time
+        for op in self.operations:
+            op.set_end_time(end_time)
+    
+    def set_start_time(self, start_time: float):
+        self.start_time = start_time
+        for op in self.operations:
+            op.set_start_time(start_time)
+
+    def __repr__(self) -> str:
+        op_str = ", ".join([f"({op.batch_id},{op.stage_id},{op.op_type})" for op in self.operations])
+        return f"OverlappedOperation([{op_str}])"
 
 class DeviceQueue:
     def __init__(self, stages: List[int], device_id: int):
@@ -45,6 +90,7 @@ class ScheduleConfig:
         self.p2p_latency = p2p_latency
         self.placement_strategy = placement_strategy
         self.split_backward = split_backward
+        self.overlapped_op_times = {}
 
         # Initialize default operation times
         if self.split_backward:
@@ -104,9 +150,20 @@ class ScheduleConfig:
             raise ValueError(f"Invalid placement strategy: {self.placement_strategy}")
 
     def get_op_time(self, op_type: str, stage_id: int):
+        # For overlapped operations, extract the original operation types
+        if op_type.startswith("overlapped_"):
+            op_parts = op_type.split("_")[1:]
+            if len(op_parts) >= 2:
+                op_type1, op_type2 = op_parts[0], op_parts[1]
+                # Check if we have a specific time for this combination
+                if (op_type1, op_type2) in self.overlapped_op_times:
+                    return self.overlapped_op_times[(op_type1, op_type2)]
+                # Otherwise, use the sum of individual times
+                return (self.get_op_time(op_type1, stage_id) + 
+                        self.get_op_time(op_type2, stage_id))
+
         if op_type not in self.op_times:
             raise ValueError(f"Invalid operation type: {op_type}")
-            
         times = self.op_times[op_type]
         if isinstance(times, dict):
             # If we have stage-specific times, use those
@@ -121,9 +178,9 @@ class ScheduleConfig:
 class Schedule:
     def __init__(self, config: ScheduleConfig):
         self.ops = {}  # (batch_id, stage_id, op_type) -> Operation
-        self.dev_queues: List[DeviceQueue] = []
+        self.device_queues: List[DeviceQueue] = []
         for dev_id in range(config.num_devices):
-            self.dev_queues.append(DeviceQueue(config.device_to_stages[dev_id], dev_id))
+            self.device_queues.append(DeviceQueue(config.device_to_stages[dev_id], dev_id))
         self.config = config
 
         self.init_operations()
@@ -142,7 +199,7 @@ class Schedule:
     def get_op(self, batch_id: int, stage_id: int, op_type: str):
         return self.ops[(batch_id, stage_id, op_type)]
 
-    def get_dependencies(self, op: Operation):
+    def get_dependencies(self, op: Operation, include_device_dependency=True):
         deps = []
         if op.op_type == "forward":
             if op.stage_id > 0:
@@ -179,9 +236,10 @@ class Schedule:
                         )
                     )
 
-        device_index = self.dev_queues[op.device_id].ops.index(op)
-        if device_index > 0:
-            deps.append((self.dev_queues[op.device_id].ops[device_index - 1], 0.0))
+        if include_device_dependency:
+            device_index = self.device_queues[op.device_id].ops.index(op)
+            if device_index > 0:
+                deps.append((self.device_queues[op.device_id].ops[device_index - 1], 0.0))
         return deps
 
     def show(self):
@@ -192,12 +250,12 @@ class Schedule:
         print("\n=== DEVICE QUEUES ===")
         
         for dev_id in range(self.config.num_devices):
-            print(f"\nDEVICE {dev_id} (Stages: {self.dev_queues[dev_id].stages}):")
+            print(f"\nDEVICE {dev_id} (Stages: {self.device_queues[dev_id].stages}):")
             print("-" * 80)
             print(f"{'Batch':^6} | {'Stage':^6} | {'Type':^10} | {'Start':^10} | {'End':^10} | {'Duration':^10}")
             print("-" * 80)
             
-            for op in self.dev_queues[dev_id].ops:
+            for op in self.device_queues[dev_id].ops:
                 op_type = op.op_type
                 start = f"{op.start_time:.2f}" if op.start_time is not None else "N/A"
                 end = f"{op.end_time:.2f}" if op.end_time is not None else "N/A"
@@ -207,7 +265,7 @@ class Schedule:
                     duration = f"{op.end_time - op.start_time:.2f}"
                 
                 print(f"{op.batch_id:^6} | {op.stage_id:^6} | {op_type:^10} | {start:^10} | {end:^10} | {duration:^10}")
-        
+
         # Find the total execution time (if timing info is available)
         if all(op.end_time is not None for op in self.ops.values()):
             total_time = max(op.end_time for op in self.ops.values())
@@ -215,22 +273,26 @@ class Schedule:
     
     def execute(self):
         def execute_op(op: Operation):
+            if op.end_time is not None:
+                return
             deps = self.get_dependencies(op)
             if len(deps) == 0:
-                op.start_time = 0.0
+                op.set_start_time(0.0)
             else:
                 for dep, gap in deps:
                     if dep.end_time is None or dep.start_time is None:
                         execute_op(dep)
-                op.start_time = max(dep.end_time + gap for dep, gap in deps)
-            op.end_time = op.start_time + self.config.get_op_time(
+                op.set_start_time(max(dep.end_time + gap for dep, gap in deps))
+            op.set_end_time(op.start_time + self.config.get_op_time(
                 op.op_type, op.stage_id
-            )
+            ))
 
-        op_num = len(self.dev_queues[0].ops)
+        op_num = len(self.device_queues[0].ops)
         for i in range(op_num):
             for dev_id in range(self.config.num_devices):
-                op = self.dev_queues[dev_id].ops[i]
+                if len(self.device_queues[dev_id].ops) <= i:
+                    continue
+                op = self.device_queues[dev_id].ops[i]
                 execute_op(op)
 
         for op in self.ops.values():
