@@ -2,6 +2,7 @@
 ./venv
 uv.lock
 outputs/
+.cursor/*
 
 # Uncomment below if you want to include these files
 # !assets/*.png
