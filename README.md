@@ -52,7 +52,7 @@ uv run python main.py strategy=zb1p num_devices=4 num_stages=4 num_batches=8
 
 
 Running for 1F1B-batch-overlap strategy:
-```bah
+```bash
 uv run python main.py strategy=1f1b_overlap num_devices=4 num_stages=4 num_batches=8
 ```
 ![1f1b_overlap](assets/1f1b_overlap.png)

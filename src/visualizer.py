@@ -5,6 +5,8 @@ import plotly.graph_objects as go
 from typing import List, Dict
 from tqdm import tqdm
 from functools import lru_cache
+import webbrowser
+from threading import Timer
 
 from src.execution_model import Schedule
 
@@ -26,7 +28,7 @@ def convert_schedule_to_visualization_format(schedule: Schedule):
     visualization_data = {}
 
     # Organize operations by device
-    for device_id, device_queue in enumerate(schedule.dev_queues):
+    for device_id, device_queue in enumerate(schedule.device_queues):
         visualization_data[device_id] = []
 
         for op in device_queue.ops:
@@ -494,6 +496,7 @@ def visualize_pipeline_parallelism_dash(
     debug: bool = False,
     enable_caching: bool = True,
     schedule_type="1f1b",
+    open_browser: bool = True,
 ):
     """
     Launch a Dash app to visualize the pipeline schedule interactively.
@@ -504,9 +507,20 @@ def visualize_pipeline_parallelism_dash(
         debug: Whether to run the Dash app in debug mode
         enable_caching: Whether to cache schedule data and figures
         schedule_type: Type of schedule ("1f1b", "zb1p", or custom description)
+        open_browser: Whether to automatically open a browser window
     """
     app = create_dash_app(
         schedule, schedule_type=schedule_type, enable_caching=enable_caching
     )
+    
+    # Define function to open browser after a short delay
+    def open_browser_tab():
+        webbrowser.open_new_tab(f"http://localhost:{port}/")
+    
+    # Open browser automatically if requested
+    if open_browser:
+        # Use a timer to open the browser after the server has started
+        Timer(1.0, open_browser_tab).start()
+    
     print(f"Starting Dash app on http://localhost:{port}/")
     app.run_server(debug=debug, port=port)

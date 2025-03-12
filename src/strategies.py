@@ -1,5 +1,5 @@
 from collections import defaultdict
-from src.execution_model import Schedule, ScheduleConfig
+from src.execution_model import OverlappedOperation, Schedule, ScheduleConfig
 
 
 def generate_1f1b_schedule(config: ScheduleConfig):
@@ -14,23 +14,23 @@ def generate_1f1b_schedule(config: ScheduleConfig):
         steady_batches = config.num_batches - warmup_batches
 
         for _ in range(warmup_batches):
-            schedule.dev_queues[i].add_operation(
+            schedule.device_queues[i].add_operation(
                 schedule.get_op(fwd_batch_id, i, "forward")
             )
             fwd_batch_id += 1
 
         for _ in range(steady_batches):
-            schedule.dev_queues[i].add_operation(
+            schedule.device_queues[i].add_operation(
                 schedule.get_op(fwd_batch_id, i, "forward")
             )
             fwd_batch_id += 1
-            schedule.dev_queues[i].add_operation(
+            schedule.device_queues[i].add_operation(
                 schedule.get_op(bwd_batch_id, i, "backward")
             )
             bwd_batch_id += 1
 
         for _ in range(cooldown_batches):
-            schedule.dev_queues[i].add_operation(
+            schedule.device_queues[i].add_operation(
                 schedule.get_op(bwd_batch_id, i, "backward")
             )
             bwd_batch_id += 1
@@ -53,20 +53,20 @@ def generate_zero_bubble_1p_schedule(config: ScheduleConfig):
         steady_batches = total_batches - warmup_batches
 
         for _ in range(warmup_batches):
-            schedule.dev_queues[i].add_operation(
+            schedule.device_queues[i].add_operation(
                 schedule.get_op(fwd_batch_id, i, "forward")
             )
             fwd_batch_id += 1
 
         for _ in range(steady_batches):
-            schedule.dev_queues[i].add_operation(
+            schedule.device_queues[i].add_operation(
                 schedule.get_op(fwd_batch_id, i, "forward")
             )
-            schedule.dev_queues[i].add_operation(
+            schedule.device_queues[i].add_operation(
                 schedule.get_op(bwd_d_batch_id, i, "backward_D")
             )
             if fwd_batch_id - bwd_w_batch_id >= config.num_devices - 1:
-                schedule.dev_queues[i].add_operation(
+                schedule.device_queues[i].add_operation(
                     schedule.get_op(bwd_w_batch_id, i, "backward_W")
                 )
                 bwd_w_batch_id += 1
@@ -74,11 +74,11 @@ def generate_zero_bubble_1p_schedule(config: ScheduleConfig):
             fwd_batch_id += 1
         
         for _ in range(cooldown_batches):
-            schedule.dev_queues[i].add_operation(
+            schedule.device_queues[i].add_operation(
                 schedule.get_op(bwd_d_batch_id, i, "backward_D")
             )
 
-            schedule.dev_queues[i].add_operation(
+            schedule.device_queues[i].add_operation(
                 schedule.get_op(bwd_w_batch_id, i, "backward_W")
             )
 
@@ -86,7 +86,7 @@ def generate_zero_bubble_1p_schedule(config: ScheduleConfig):
             bwd_d_batch_id += 1
         
         while bwd_w_batch_id < total_batches:
-            schedule.dev_queues[i].add_operation(
+            schedule.device_queues[i].add_operation(
                 schedule.get_op(bwd_w_batch_id, i, "backward_W")
             )
             bwd_w_batch_id += 1
@@ -106,23 +106,21 @@ def generate_1f1b_overlap_schedule(config: ScheduleConfig):
         steady_batches = config.num_batches - warmup_batches
 
         for _ in range(warmup_batches):
-            schedule.dev_queues[i].add_operation(
+            schedule.device_queues[i].add_operation(
                 schedule.get_op(fwd_batch_id, i, "forward")
             )
             fwd_batch_id += 1
 
         for _ in range(steady_batches):
-            schedule.dev_queues[i].add_operation(
-                schedule.get_op(fwd_batch_id, i, "forward")
-            )
+            fwd_op = schedule.get_op(fwd_batch_id, i, "forward")
+            bwd_op = schedule.get_op(bwd_batch_id, i, "backward")
+            schedule.device_queues[i].add_operation(OverlappedOperation([fwd_op, bwd_op]))
+
             fwd_batch_id += 1
-            schedule.dev_queues[i].add_operation(
-                schedule.get_op(bwd_batch_id, i, "backward")
-            )
             bwd_batch_id += 1
 
         for _ in range(cooldown_batches):
-            schedule.dev_queues[i].add_operation(
+            schedule.device_queues[i].add_operation(
                 schedule.get_op(bwd_batch_id, i, "backward")
             )
             bwd_batch_id += 1
@@ -264,7 +262,7 @@ def generate_1f1b_interleave_schedule(config: ScheduleConfig):
             cur_stage_microbatch_id[i] = 0
             cur_stage_microbatch_id[-i] = 0
         for order_item in order:
-            stage_id = schedule.dev_queues[device_id].stages[abs(order_item)-1]
+            stage_id = schedule.device_queues[device_id].stages[abs(order_item)-1]
 
             if order_item > 0:
                 op_type = "forward"
@@ -276,7 +274,7 @@ def generate_1f1b_interleave_schedule(config: ScheduleConfig):
                 cur_stage_microbatch_id[order_item] = cur_stage_microbatch_id[order_item] + 1
             else:
                 raise ValueError(f"Invalid order item: {order_item}")
-            schedule.dev_queues[device_id].add_operation(
+            schedule.device_queues[device_id].add_operation(
                 schedule.get_op(micro_batch_id, stage_id, op_type)
             )
     return schedule
