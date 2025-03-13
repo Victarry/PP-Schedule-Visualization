@@ -72,30 +72,26 @@ def convert_schedule_to_visualization_format(schedule: Schedule):
 def get_color(op_type: str, stage_id: int, num_devices: int):
     # A more harmonious blue palette with better progression for forward operations
     forward_colors = [
-        "#5c88f2",  # Periwinkle blue
-        "#1a53ff",  # Deep blue
-        "#b3c6ff",  # Light blue
-        "#4d79ff",  # Strong blue
-        "#809fff",  # Medium blue
         "#0039e6",  # Rich navy
-        "#002db3",  # Dark navy
-        "#264db3",  # Royal blue
+        "#1a53ff",  # Deep blue
+        "#4d79ff",  # Strong blue
+        "#5c88f2",  # Periwinkle blue
         "#7094db",  # Steel blue
+        "#809fff",  # Medium blue
         "#99b3e6",  # Pale blue
+        "#b3c6ff",  # Light blue
     ]
 
     # Orange palette for backward operations
     backward_colors = [
-        "#ff9933",  # Bright orange
+        "#ff8000",  # Deep orange
+        "#ff9933",  # Strong orange
         "#ffad5c",  # Medium orange
         "#ffc285",  # Light orange
-        "#ffd6ad",  # Pale orange
-        "#ff8000",  # Deep orange
-        "#cc6600",  # Dark orange
-        "#ff9933",  # Vivid orange
-        "#ffb366",  # Soft orange
-        "#cc9966",  # Muted orange
         "#ffd699",  # Light amber
+        "#ffd6ad",  # Pale orange
+        "#ffe0c2",  # Very pale orange
+        "#fff0e0",  # Lightest orange
     ]
 
     # Improved teal/turquoise palette with better progression for backward_D operations
@@ -126,29 +122,12 @@ def get_color(op_type: str, stage_id: int, num_devices: int):
         "#c6e6c6",  # Pastel green
     ]
     
-    # Purple palette for overlapped operations
-    overlapped_colors = [
-        "#9966cc",  # Medium purple
-        "#8a2be2",  # Blue violet
-        "#9370db",  # Medium purple
-        "#6a5acd",  # Slate blue
-        "#7b68ee",  # Medium slate blue
-        "#ba55d3",  # Medium orchid
-        "#9932cc",  # Dark orchid
-        "#d8bfd8",  # Thistle
-        "#e6e6fa",  # Lavender
-        "#dda0dd",  # Plum
-    ]
-
     virtual_stage = stage_id // num_devices
 
     # If virtual_stage is beyond our color list, cycle through the colors
     color_index = virtual_stage % len(forward_colors)
 
-    # Handle overlapped operations
-    if op_type.startswith("overlapped_"):
-        return overlapped_colors[color_index]
-    elif op_type == "forward":
+    if op_type == "forward":
         return forward_colors[color_index]
     elif op_type == "backward":
         return backward_colors[color_index]
