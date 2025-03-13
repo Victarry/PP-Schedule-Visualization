@@ -435,15 +435,7 @@ def create_pipeline_figure(
             progress_bar.update(1)
 
     # Set axis properties
-    device_labels = [f"Device {i}" for i in range(num_devices)]
-    # Modify the ordering to put Device 1 at the top, then Device 0, then the rest
-    if num_devices >= 2:
-        # Move Device 1 to the top, followed by Device 0
-        device_labels = (
-            [device_labels[1], device_labels[0]] + device_labels[2:]
-            if num_devices > 1
-            else device_labels
-        )
+    device_labels = [f"Device {i+1}" for i in range(num_devices)]
 
     # Calculate tick positions with no gaps
     tick_positions = [(num_devices - i - 1) * y_spacing for i in range(num_devices)]
