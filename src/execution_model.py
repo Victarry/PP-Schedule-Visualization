@@ -158,9 +158,8 @@ class ScheduleConfig:
                 # Check if we have a specific time for this combination
                 if (op_type1, op_type2) in self.overlapped_op_times:
                     return self.overlapped_op_times[(op_type1, op_type2)]
-                # Otherwise, use the sum of individual times
-                return (self.get_op_time(op_type1, stage_id) + 
-                        self.get_op_time(op_type2, stage_id))
+                # Otherwise, use the max of individual times plus a small overhead
+                return max(self.get_op_time(op_type1, stage_id), self.get_op_time(op_type2, stage_id)) + 0.2
 
         if op_type not in self.op_times:
             raise ValueError(f"Invalid operation type: {op_type}")
@@ -184,6 +183,12 @@ class Schedule:
         self.config = config
 
         self.init_operations()
+        self.op_to_overlapped = {}
+    
+    def register_overlapped_operation(self, overlapped_op: OverlappedOperation):
+        for op in overlapped_op.operations:
+            self.op_to_overlapped[(op.batch_id, op.stage_id, op.op_type)] = overlapped_op
+            self.ops[(op.batch_id, op.stage_id, op.op_type)] = overlapped_op
 
     def init_operations(self):
         op_types = ["forward", "backward"]
@@ -197,10 +202,21 @@ class Schedule:
                     )
 
     def get_op(self, batch_id: int, stage_id: int, op_type: str):
+        if (batch_id, stage_id, op_type) in self.op_to_overlapped:
+            return self.op_to_overlapped[(batch_id, stage_id, op_type)]
         return self.ops[(batch_id, stage_id, op_type)]
 
     def get_dependencies(self, op: Operation, include_device_dependency=True):
         deps = []
+        if isinstance(op, OverlappedOperation):
+            for sub_op in op.operations:
+                deps.extend(self.get_dependencies(sub_op, include_device_dependency=False))
+
+            if include_device_dependency:
+                device_index = self.device_queues[op.device_id].ops.index(op)
+                if device_index > 0:
+                    deps.append((self.device_queues[op.device_id].ops[device_index - 1], 0.0))
+            return deps
         if op.op_type == "forward":
             if op.stage_id > 0:
                 deps.append(
@@ -272,6 +288,7 @@ class Schedule:
             print(f"\nTotal execution time: {total_time:.2f}")
     
     def execute(self):
+        # TODO: change the execution order to topological order via DAG
         def execute_op(op: Operation):
             if op.end_time is not None:
                 return
