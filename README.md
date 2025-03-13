@@ -108,6 +108,12 @@ PP-Emulation/
 └── README.md               # This file
 ```
 
+## Refences
+1. _PipeDream: Fast and Efficient Pipeline Parallel DNN Training_. [arxiv](https://arxiv.org/abs/1806.03377)
+2. _Efficient Large-Scale Language Model Training on GPU Clusters Using Megatron-LM_. [arxiv](https://arxiv.org/abs/2104.04473)
+3. _Zero Bubble Pipeline Parallelism_ [arxiv](https://arxiv.org/abs/2401.10241)
+4. 基于1F1B的MoE A2A通信计算Overlap [blog](https://zhuanlan.zhihu.com/p/28463368206)
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
