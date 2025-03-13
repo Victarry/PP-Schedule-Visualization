@@ -70,56 +70,47 @@ def convert_schedule_to_visualization_format(schedule: Schedule):
 # Cache the color calculation as it's repeatedly called with the same parameters
 @lru_cache(maxsize=128)
 def get_color(op_type: str, stage_id: int, num_devices: int):
-    # A more harmonious blue palette with better progression for forward operations
+    # A more harmonious blue palette with low saturation and high brightness
     forward_colors = [
-        "#0039e6",  # Rich navy
-        "#1a53ff",  # Deep blue
-        "#4d79ff",  # Strong blue
-        "#5c88f2",  # Periwinkle blue
-        "#7094db",  # Steel blue
-        "#809fff",  # Medium blue
-        "#99b3e6",  # Pale blue
-        "#b3c6ff",  # Light blue
+        "#0a5aff",  # Intense blue
+        "#4c88ff",  # Blue (deeper)
+        "#7aa7ff",  # Medium blue
+        "#a8c5ff",  # Soft blue
+        "#d6e4ff",  # Very light blue
     ]
 
-    # Orange palette for backward operations
+    # Orange palette for backward operations with low saturation and high brightness
     backward_colors = [
-        "#ff8000",  # Deep orange
-        "#ff9933",  # Strong orange
-        "#ffad5c",  # Medium orange
-        "#ffc285",  # Light orange
-        "#ffd699",  # Light amber
-        "#ffd6ad",  # Pale orange
-        "#ffe0c2",  # Very pale orange
-        "#fff0e0",  # Lightest orange
+        "#f47b00",  # Intense orange
+        "#ffa952",  # Orange
+        "#ffc78e",  # Light orange
+        "#ffe6cc",  # Very light orange
     ]
 
-    # Improved teal/turquoise palette with better progression for backward_D operations
+    # Improved teal/turquoise palette with low saturation and high brightness
     backward_d_colors = [
-        "#80ffff",  # Light cyan
-        "#00cccc",  # Teal
-        "#00e6e6",  # Bright teal
-        "#33ffff",  # Cyan
-        "#00b3b3",  # Medium teal
+        "#ccffff",  # Very light cyan
+        "#b3ffff",  # Pale cyan
+        "#99ffff",  # Light cyan
+        "#80ffff",  # Cyan
+        "#66e6e6",  # Soft teal
+        "#4dcccc",  # Light teal
+        "#33b3b3",  # Teal
+        "#009999",  # Medium teal
         "#008080",  # Dark teal
-        "#00e6cc",  # Turquoise
-        "#4ddbbd",  # Aqua
-        "#80d4c8",  # Pale teal
-        "#b3e6e0",  # Ice
     ]
 
-    # Improved green palette with better progression for backward_W operations
+    # Improved green palette with low saturation and high brightness
     backward_w_colors = [
-        "#00cc66",  # Medium green
-        "#00e673",  # Bright green
-        "#33ff99",  # Mint green
-        "#80ffbf",  # Light green
-        "#009933",  # Forest green
-        "#006622",  # Dark green
-        "#33cc33",  # True green
-        "#66cc66",  # Sage green
-        "#99cc99",  # Pale green
-        "#c6e6c6",  # Pastel green
+        "#ccffe6",  # Very light mint
+        "#b3ffd9",  # Pale mint
+        "#99ffcc",  # Light mint
+        "#80ffbf",  # Mint green
+        "#66e6a6",  # Soft green
+        "#4dcc8c",  # Light green
+        "#33b373",  # Medium green
+        "#009959",  # Forest green
+        "#008040",  # Dark green
     ]
     
     virtual_stage = stage_id // num_devices
@@ -130,11 +121,11 @@ def get_color(op_type: str, stage_id: int, num_devices: int):
     if op_type == "forward":
         return forward_colors[color_index]
     elif op_type == "backward":
-        return backward_colors[color_index]
+        return backward_colors[color_index % len(backward_colors)]
     elif op_type == "backward_D":
-        return backward_d_colors[color_index]
+        return backward_d_colors[color_index % len(backward_d_colors)]
     elif op_type == "backward_W":
-        return backward_w_colors[color_index]
+        return backward_w_colors[color_index % len(backward_w_colors)]
     else:
         raise ValueError(f"Invalid operation type: {op_type}")
 
@@ -163,6 +154,15 @@ def create_pipeline_figure(
                 end_time = task["start_time"] + task["duration"]
                 if end_time > max_time:
                     max_time = end_time
+    
+    # Determine maximum batch number to decide whether to show text labels
+    max_batch = 0
+    for device in schedule_data:
+        for task in schedule_data[device]:
+            max_batch = max(max_batch, task["batch"])
+    
+    # Flag to determine whether to show text labels
+    show_text_labels = max_batch <= 16
 
     # Create a figure
     fig = go.Figure()
@@ -251,22 +251,23 @@ def create_pipeline_figure(
                         )
                     )
                     
-                    # Add batch number text for this sub-operation
-                    # Determine text color based on background color
-                    if sub_op["type"] in ["backward", "backward_D", "backward_W"]:
-                        text_color = "black"
-                    else:
-                        text_color = "white"
-                        
-                    annotations.append(
-                        dict(
-                            x=start_time + duration / 2,
-                            y=sub_y_center,
-                            text=f"{sub_op['batch']}",
-                            showarrow=False,
-                            font=dict(color=text_color, size=12, family="Arial, bold"),
+                    # Add batch number text for this sub-operation only if show_text_labels is True
+                    if show_text_labels:
+                        # Determine text color based on background color
+                        if sub_op["type"] in ["backward", "backward_D", "backward_W"]:
+                            text_color = "black"
+                        else:
+                            text_color = "white"
+                            
+                        annotations.append(
+                            dict(
+                                x=start_time + duration / 2,
+                                y=sub_y_center,
+                                text=f"{sub_op['batch']}",
+                                showarrow=False,
+                                font=dict(color=text_color, size=12, family="Arial, bold"),
+                            )
                         )
-                    )
             else:
                 # Regular (non-overlapped) operation
                 # Determine task color and text color
@@ -305,16 +306,17 @@ def create_pipeline_figure(
                     )
                 )
 
-                # Add batch number text
-                annotations.append(
-                    dict(
-                        x=start_time + duration / 2,
-                        y=y_pos,
-                        text=f"{task['batch']}",
-                        showarrow=False,
-                        font=dict(color=text_color, size=12, family="Arial, bold"),
+                # Add batch number text only if show_text_labels is True
+                if show_text_labels:
+                    annotations.append(
+                        dict(
+                            x=start_time + duration / 2,
+                            y=y_pos,
+                            text=f"{task['batch']}",
+                            showarrow=False,
+                            font=dict(color=text_color, size=12, family="Arial, bold"),
+                        )
                     )
-                )
 
                 # Prepare hover data
                 hover_text = (
