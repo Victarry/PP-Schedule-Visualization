@@ -6,58 +6,63 @@ This project provides tools for emulating and visualizing pipeline parallelism s
 
 Pipeline parallelism is a technique used to train large models by partitioning the model across multiple devices and processing data in a pipelined fashion. This project allows you to:
 
-- Simulate different pipeline parallelism strategies (1F1B, Interleaved)
+- Simulate different pipeline parallelism strategies (1F1B, Interleaved, Zero-Bubble, etc.)
 - Visualize the execution schedule on multiple devices
 - Compare different strategies for efficiency
 
 ## Features
-- Supported Pipeline Stragegies:
-    - 1F1B
-    - Interleaved 1F1B
-- Visualization:
-    - Interactive visualization dashboard using Plotly/Dash
-- Config:
-    - Configurable simulation parameters through Hydra
-    - Each stage
+
+- **Supported Pipeline Strategies**:
+  - 1F1B (One-Forward-One-Backward)
+  - Interleaved 1F1B
+  - Zero-Bubble 1F1B (ZB-1P)
+  - 1F1B with computation-communication overlap
+  - Interleaved 1F1B with computation-communication overlap
+
+- **Visualization**:
+  - Interactive visualization dashboard using Plotly/Dash
+  
+- **Configuration**:
+  - Configurable simulation parameters through Hydra
+  - Customizable stage latency and communication costs
 
 ## Installation
 
 This project uses [uv](https://github.com/astral-sh/uv) for dependency management.
 
-Setup `uv` if not installed in your computer:
-```
-# On macOS and Linux.
+Setup `uv` if not installed on your computer:
+```bash
+# On macOS and Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 ## Usage
 
-Running for 1F1B strategy:
+### Running for 1F1B strategy:
 ```bash
 uv run python main.py strategy=1f1b num_devices=4 num_stages=4 num_batches=8
 ```
 ![1f1b](assets/1f1b.png)
 
-Running for interleave strategy:
+### Running for interleaved strategy:
 ```bash
 uv run python main.py strategy=interleave num_devices=4 num_stages=8 num_batches=8
 ```
 ![interleave](assets/interleave_1f1b.png)
 
-Running for ZB-1P strategy:
+### Running for ZB-1P strategy:
 ```bash
 uv run python main.py strategy=zb1p num_devices=4 num_stages=4 num_batches=8
 ```
 ![zb1p](assets/zb1p.png)
 
-
-Running for 1F1B-batch-overlap strategy:
+### Running for 1F1B-batch-overlap strategy:
 ```bash
 uv run python main.py strategy=1f1b_overlap num_devices=4 num_stages=4 num_batches=8
 ```
 ![1f1b_overlap](assets/1f1b_overlap.png)
 
-Running for 1F1B-interleave-overlap strategy:
+### Running for 1F1B-interleave-overlap strategy:
 ```bash
 uv run python main.py strategy=1f1b_interleave_overlap num_devices=4 num_stages=8 num_batches=8
 ```
@@ -77,7 +82,7 @@ You can use different configuration files with Hydra in several ways:
    ```
    conf/
    ├── config.yaml     # Default configuration
-   └── model_A.yaml    # Create your own config with stage-specific latency for performance projection.
+   └── model_A.yaml    # Create your own config with stage-specific latency for performance projection
    ```
 
 2. Run with your desired configuration using the `--config-name` flag:
@@ -108,11 +113,12 @@ PP-Emulation/
 └── README.md               # This file
 ```
 
-## Refences
+## References
+
 1. _PipeDream: Fast and Efficient Pipeline Parallel DNN Training_. [arxiv](https://arxiv.org/abs/1806.03377)
 2. _Efficient Large-Scale Language Model Training on GPU Clusters Using Megatron-LM_. [arxiv](https://arxiv.org/abs/2104.04473)
-3. _Zero Bubble Pipeline Parallelism_ [arxiv](https://arxiv.org/abs/2401.10241)
-4. 基于1F1B的MoE A2A通信计算Overlap [blog](https://zhuanlan.zhihu.com/p/28463368206)
+3. _Zero Bubble Pipeline Parallelism_. [arxiv](https://arxiv.org/abs/2401.10241)
+4. _Communication-Computation Overlap in MoE Training with 1F1B Pipeline Parallelism_. [blog](https://zhuanlan.zhihu.com/p/28463368206)
 
 ## License
 
