@@ -8,7 +8,7 @@ from functools import lru_cache
 import webbrowser
 from threading import Timer
 
-from src.execution_model import Schedule
+from src.execution_model import Schedule, OverlappedOperation
 
 
 def convert_schedule_to_visualization_format(schedule: Schedule):
@@ -32,15 +32,37 @@ def convert_schedule_to_visualization_format(schedule: Schedule):
         visualization_data[device_id] = []
 
         for op in device_queue.ops:
-            visualization_data[device_id].append(
-                {
-                    "type": op.op_type,
-                    "batch": op.batch_id + 1,  # +1 because batch_id is 0-indexed
-                    "stage": op.stage_id,
-                    "start_time": op.start_time,
-                    "duration": op.end_time - op.start_time,
-                }
-            )
+            # Handle both regular Operations and OverlappedOperations
+            if isinstance(op, OverlappedOperation):
+                visualization_data[device_id].append(
+                    {
+                        "type": op.op_type,
+                        "batch": op.batch_id + 1,  # +1 because batch_id is 0-indexed
+                        "stage": op.stage_id,
+                        "start_time": op.start_time,
+                        "duration": op.end_time - op.start_time,
+                        "is_overlapped": True,
+                        "operations": [
+                            {
+                                "type": nested_op.op_type,
+                                "batch": nested_op.batch_id + 1,
+                                "stage": nested_op.stage_id
+                            }
+                            for nested_op in op.operations
+                        ]
+                    }
+                )
+            else:
+                visualization_data[device_id].append(
+                    {
+                        "type": op.op_type,
+                        "batch": op.batch_id + 1,  # +1 because batch_id is 0-indexed
+                        "stage": op.stage_id,
+                        "start_time": op.start_time,
+                        "duration": op.end_time - op.start_time,
+                        "is_overlapped": False
+                    }
+                )
 
     return visualization_data
 
@@ -103,13 +125,30 @@ def get_color(op_type: str, stage_id: int, num_devices: int):
         "#99cc99",  # Pale green
         "#c6e6c6",  # Pastel green
     ]
+    
+    # Purple palette for overlapped operations
+    overlapped_colors = [
+        "#9966cc",  # Medium purple
+        "#8a2be2",  # Blue violet
+        "#9370db",  # Medium purple
+        "#6a5acd",  # Slate blue
+        "#7b68ee",  # Medium slate blue
+        "#ba55d3",  # Medium orchid
+        "#9932cc",  # Dark orchid
+        "#d8bfd8",  # Thistle
+        "#e6e6fa",  # Lavender
+        "#dda0dd",  # Plum
+    ]
 
     virtual_stage = stage_id // num_devices
 
     # If virtual_stage is beyond our color list, cycle through the colors
     color_index = virtual_stage % len(forward_colors)
 
-    if op_type == "forward":
+    # Handle overlapped operations
+    if op_type.startswith("overlapped_"):
+        return overlapped_colors[color_index]
+    elif op_type == "forward":
         return forward_colors[color_index]
     elif op_type == "backward":
         return backward_colors[color_index]
@@ -191,6 +230,14 @@ def create_pipeline_figure(
                 color = get_color(task["type"], task["stage"], num_devices)
                 text_color = "black"
                 name = "Backward (Weight)"
+            elif task["type"].startswith("overlapped_"):
+                color = get_color(task["type"], task["stage"], num_devices)
+                text_color = "white"
+                name = "Overlapped"
+                # Create a more descriptive name for the hover text
+                if "is_overlapped" in task and task["is_overlapped"]:
+                    op_types = [op["type"] for op in task["operations"]]
+                    name = f"Overlapped ({', '.join(op_types)})"
             else:
                 color = empty_color
                 text_color = "black"
@@ -222,14 +269,34 @@ def create_pipeline_figure(
                 dict(
                     x=start_time + duration / 2,
                     y=y_pos,
-                    text=f"{task['batch']}",
+                    text=f"{task['batch']}" + ("*" if task.get("is_overlapped", False) else ""),
                     showarrow=False,
                     font=dict(color=text_color, size=12, family="Arial, bold"),
                 )
             )
 
             # Prepare hover data (add traces in batches later)
-            hover_text = f"Batch: {task['batch']}<br>Stage: {task['stage']}<br>Type: {name}<br>Start: {task['start_time']:.2f}<br>End: {task['start_time'] + task['duration']:.2f}<br>Duration: {task['duration']:.2f}"
+            if task.get("is_overlapped", False):
+                # Enhanced hover text for overlapped operations
+                op_details = "<br>".join([
+                    f"- {op['type']} (Batch {op['batch']}, Stage {op['stage']})"
+                    for op in task["operations"]
+                ])
+                hover_text = (
+                    f"Overlapped Operations:<br>{op_details}<br>"
+                    f"Start: {task['start_time']:.2f}<br>"
+                    f"End: {task['start_time'] + task['duration']:.2f}<br>"
+                    f"Duration: {task['duration']:.2f}"
+                )
+            else:
+                hover_text = (
+                    f"Batch: {task['batch']}<br>"
+                    f"Stage: {task['stage']}<br>"
+                    f"Type: {name}<br>"
+                    f"Start: {task['start_time']:.2f}<br>"
+                    f"End: {task['start_time'] + task['duration']:.2f}<br>"
+                    f"Duration: {task['duration']:.2f}"
+                )
 
             hover_traces.append(
                 dict(
@@ -268,6 +335,13 @@ def create_pipeline_figure(
             virtual_stage = task["stage"] // num_devices
             max_virtual_stage = max(max_virtual_stage, virtual_stage)
 
+    # Check if overlapped operations exist
+    has_overlapped = any(
+        task.get("is_overlapped", False)
+        for device in schedule_data
+        for task in schedule_data[device]
+    )
+
     # Add forward and backward items for each virtual stage
     for vs in range(max_virtual_stage + 1):
         legend_items.append(
@@ -300,6 +374,15 @@ def create_pipeline_figure(
                     color=get_color("backward_W", vs * num_devices, num_devices),
                 )
             )
+        
+        # Add entry for overlapped operations if they exist
+        if has_overlapped:
+            legend_items.append(
+                dict(
+                    name=f"Overlapped (VS {vs})",
+                    color=get_color("overlapped_", vs * num_devices, num_devices),
+                )
+            )
 
     # If no tasks found, add default legend items
     if not legend_items:
@@ -313,6 +396,10 @@ def create_pipeline_figure(
             dict(
                 name="Backward Weight (VS 0)",
                 color=get_color("backward_W", 0, num_devices),
+            ),
+            dict(
+                name="Overlapped (VS 0)",
+                color=get_color("overlapped_", 0, num_devices),
             ),
         ]
 

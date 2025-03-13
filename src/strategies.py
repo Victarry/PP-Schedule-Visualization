@@ -114,7 +114,9 @@ def generate_1f1b_overlap_schedule(config: ScheduleConfig):
         for _ in range(steady_batches):
             fwd_op = schedule.get_op(fwd_batch_id, i, "forward")
             bwd_op = schedule.get_op(bwd_batch_id, i, "backward")
-            schedule.device_queues[i].add_operation(OverlappedOperation([fwd_op, bwd_op]))
+            overlapped_op = OverlappedOperation([fwd_op, bwd_op])
+            schedule.register_overlapped_operation(overlapped_op)
+            schedule.device_queues[i].add_operation(overlapped_op)
 
             fwd_batch_id += 1
             bwd_batch_id += 1

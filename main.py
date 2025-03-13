@@ -105,8 +105,7 @@ def run_1f1b_overlap(cfg: DictConfig) -> None:
     )
     schedule = generate_1f1b_overlap_schedule(schedule_config)
     schedule.execute()
-    schedule.show()
-    # visualize_pipeline_parallelism_dash(schedule, port=cfg.visualization_port)
+    visualize_pipeline_parallelism_dash(schedule, port=cfg.visualization_port)
 
 
 if __name__ == "__main__":
