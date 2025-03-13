@@ -158,8 +158,8 @@ class ScheduleConfig:
                 # Check if we have a specific time for this combination
                 if (op_type1, op_type2) in self.overlapped_op_times:
                     return self.overlapped_op_times[(op_type1, op_type2)]
-                # Otherwise, use the max of individual times plus a small overhead
-                return max(self.get_op_time(op_type1, stage_id), self.get_op_time(op_type2, stage_id)) + 0.2
+                # Otherwise, use the max of individual times
+                return max(self.get_op_time(op_type1, stage_id), self.get_op_time(op_type2, stage_id))
 
         if op_type not in self.op_times:
             raise ValueError(f"Invalid operation type: {op_type}")
