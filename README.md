@@ -59,7 +59,7 @@ uv run python main.py strategy=1f1b_overlap num_devices=4 num_stages=4 num_batch
 
 Running for 1F1B-interleave-overlap strategy:
 ```bash
-uv run python main.py strategy=1f1b_interleave_overlap num_devices=4 num_stages=4 num_batches=8
+uv run python main.py strategy=1f1b_interleave_overlap num_devices=4 num_stages=8 num_batches=8
 ```
 ![1f1b_interleave_overlap](assets/1f1b_interleave_overlap.png)
 
