@@ -213,71 +213,14 @@ def create_pipeline_figure(
         sorted_tasks = sorted(schedule_data[device], key=lambda t: t["start_time"])
 
         for task in sorted_tasks:
-            # Determine task color and text color
-            if task["type"] == "forward":
-                color = get_color(task["type"], task["stage"], num_devices)
-                text_color = "white"
-                name = "Forward"
-            elif task["type"] == "backward":
-                color = get_color(task["type"], task["stage"], num_devices)
-                text_color = "black"
-                name = "Backward"
-            elif task["type"] == "backward_D":
-                color = get_color(task["type"], task["stage"], num_devices)
-                text_color = "black"
-                name = "Backward (Grad)"
-            elif task["type"] == "backward_W":
-                color = get_color(task["type"], task["stage"], num_devices)
-                text_color = "black"
-                name = "Backward (Weight)"
-            elif task["type"].startswith("overlapped_"):
-                color = get_color(task["type"], task["stage"], num_devices)
-                text_color = "white"
-                name = "Overlapped"
-                # Create a more descriptive name for the hover text
-                if "is_overlapped" in task and task["is_overlapped"]:
-                    op_types = [op["type"] for op in task["operations"]]
-                    name = f"Overlapped ({', '.join(op_types)})"
-            else:
-                color = empty_color
-                text_color = "black"
-                name = "Unknown"
-
-            # Add rectangle for the task
-            start_time = task["start_time"]
-            duration = task["duration"]
-
             # Calculate y positions with no gaps
             y_pos = device_idx_reversed * y_spacing
-
-            # Create rectangle using shape (batch-add later)
-            shapes.append(
-                dict(
-                    type="rect",
-                    x0=start_time,
-                    y0=y_pos - 0.5,
-                    x1=start_time + duration,
-                    y1=y_pos + 0.5,
-                    line=dict(color="black", width=0.5),
-                    fillcolor=color,
-                    layer="above",
-                )
-            )
-
-            # Add batch number text (batch-add later)
-            annotations.append(
-                dict(
-                    x=start_time + duration / 2,
-                    y=y_pos,
-                    text=f"{task['batch']}" + ("*" if task.get("is_overlapped", False) else ""),
-                    showarrow=False,
-                    font=dict(color=text_color, size=12, family="Arial, bold"),
-                )
-            )
-
-            # Prepare hover data (add traces in batches later)
-            if task.get("is_overlapped", False):
-                # Enhanced hover text for overlapped operations
+            start_time = task["start_time"]
+            duration = task["duration"]
+            
+            # Special handling for overlapped operations
+            if task.get("is_overlapped", False) and "operations" in task:
+                # Prepare hover text for the entire overlapped operation
                 op_details = "<br>".join([
                     f"- {op['type']} (Batch {op['batch']}, Stage {op['stage']})"
                     for op in task["operations"]
@@ -288,7 +231,113 @@ def create_pipeline_figure(
                     f"End: {task['start_time'] + task['duration']:.2f}<br>"
                     f"Duration: {task['duration']:.2f}"
                 )
+                
+                # Add invisible marker for hover info
+                hover_traces.append(
+                    dict(
+                        x=[start_time + duration / 2],
+                        y=[y_pos],
+                        mode="markers",
+                        marker=dict(opacity=0),  # Invisible marker
+                        hoverinfo="text",
+                        text=hover_text,
+                        showlegend=False,
+                    )
+                )
+                
+                # Calculate height of each sub-operation
+                sub_height = 1.0 / len(task["operations"])
+                
+                # Add rectangles and annotations for each sub-operation
+                for i, sub_op in enumerate(task["operations"]):
+                    # Determine color for this sub-operation
+                    color = get_color(sub_op["type"], sub_op["stage"], num_devices)
+                    
+                    # Calculate y position for this sub-operation
+                    sub_y_pos_bottom = y_pos - 0.5 + (i * sub_height)
+                    sub_y_pos_top = sub_y_pos_bottom + sub_height
+                    sub_y_center = (sub_y_pos_bottom + sub_y_pos_top) / 2
+                    
+                    # Add rectangle for this sub-operation
+                    shapes.append(
+                        dict(
+                            type="rect",
+                            x0=start_time,
+                            y0=sub_y_pos_bottom,
+                            x1=start_time + duration,
+                            y1=sub_y_pos_top,
+                            line=dict(color="black", width=0.5),
+                            fillcolor=color,
+                            layer="above",
+                        )
+                    )
+                    
+                    # Add batch number text for this sub-operation
+                    # Determine text color based on background color
+                    if sub_op["type"] in ["backward", "backward_D", "backward_W"]:
+                        text_color = "black"
+                    else:
+                        text_color = "white"
+                        
+                    annotations.append(
+                        dict(
+                            x=start_time + duration / 2,
+                            y=sub_y_center,
+                            text=f"{sub_op['batch']}",
+                            showarrow=False,
+                            font=dict(color=text_color, size=12, family="Arial, bold"),
+                        )
+                    )
             else:
+                # Regular (non-overlapped) operation
+                # Determine task color and text color
+                if task["type"] == "forward":
+                    color = get_color(task["type"], task["stage"], num_devices)
+                    text_color = "white"
+                    name = "Forward"
+                elif task["type"] == "backward":
+                    color = get_color(task["type"], task["stage"], num_devices)
+                    text_color = "black"
+                    name = "Backward"
+                elif task["type"] == "backward_D":
+                    color = get_color(task["type"], task["stage"], num_devices)
+                    text_color = "black"
+                    name = "Backward (Grad)"
+                elif task["type"] == "backward_W":
+                    color = get_color(task["type"], task["stage"], num_devices)
+                    text_color = "black"
+                    name = "Backward (Weight)"
+                else:
+                    color = empty_color
+                    text_color = "black"
+                    name = "Unknown"
+
+                # Add rectangle for the task
+                shapes.append(
+                    dict(
+                        type="rect",
+                        x0=start_time,
+                        y0=y_pos - 0.5,
+                        x1=start_time + duration,
+                        y1=y_pos + 0.5,
+                        line=dict(color="black", width=0.5),
+                        fillcolor=color,
+                        layer="above",
+                    )
+                )
+
+                # Add batch number text
+                annotations.append(
+                    dict(
+                        x=start_time + duration / 2,
+                        y=y_pos,
+                        text=f"{task['batch']}",
+                        showarrow=False,
+                        font=dict(color=text_color, size=12, family="Arial, bold"),
+                    )
+                )
+
+                # Prepare hover data
                 hover_text = (
                     f"Batch: {task['batch']}<br>"
                     f"Stage: {task['stage']}<br>"
@@ -298,17 +347,17 @@ def create_pipeline_figure(
                     f"Duration: {task['duration']:.2f}"
                 )
 
-            hover_traces.append(
-                dict(
-                    x=[start_time + duration / 2],
-                    y=[y_pos],
-                    mode="markers",
-                    marker=dict(opacity=0),  # Invisible marker
-                    hoverinfo="text",
-                    text=hover_text,
-                    showlegend=False,
+                hover_traces.append(
+                    dict(
+                        x=[start_time + duration / 2],
+                        y=[y_pos],
+                        mode="markers",
+                        marker=dict(opacity=0),  # Invisible marker
+                        hoverinfo="text",
+                        text=hover_text,
+                        showlegend=False,
+                    )
                 )
-            )
 
             # Update progress
             if show_progress:
@@ -374,15 +423,6 @@ def create_pipeline_figure(
                     color=get_color("backward_W", vs * num_devices, num_devices),
                 )
             )
-        
-        # Add entry for overlapped operations if they exist
-        if has_overlapped:
-            legend_items.append(
-                dict(
-                    name=f"Overlapped (VS {vs})",
-                    color=get_color("overlapped_", vs * num_devices, num_devices),
-                )
-            )
 
     # If no tasks found, add default legend items
     if not legend_items:
@@ -396,10 +436,6 @@ def create_pipeline_figure(
             dict(
                 name="Backward Weight (VS 0)",
                 color=get_color("backward_W", 0, num_devices),
-            ),
-            dict(
-                name="Overlapped (VS 0)",
-                color=get_color("overlapped_", 0, num_devices),
             ),
         ]
 
