@@ -90,7 +90,6 @@ class ScheduleConfig:
         self.p2p_latency = p2p_latency
         self.placement_strategy = placement_strategy
         self.split_backward = split_backward
-        self.overlapped_op_times = {}
 
         # Initialize default operation times
         if self.split_backward:
@@ -152,14 +151,13 @@ class ScheduleConfig:
     def get_op_time(self, op_type: str, stage_id: int):
         # For overlapped operations, extract the original operation types
         if op_type.startswith("overlapped_"):
-            op_parts = op_type.split("_")[1:]
-            if len(op_parts) >= 2:
-                op_type1, op_type2 = op_parts[0], op_parts[1]
-                # Check if we have a specific time for this combination
-                if (op_type1, op_type2) in self.overlapped_op_times:
-                    return self.overlapped_op_times[(op_type1, op_type2)]
-                # Otherwise, use the max of individual times
-                return max(self.get_op_time(op_type1, stage_id), self.get_op_time(op_type2, stage_id))
+            if op_type in self.op_times and self.op_times[op_type][stage_id]:
+                return self.op_times[op_type][stage_id]
+            else:
+                op_parts = op_type.split("_")[1:]
+                if len(op_parts) >= 2:
+                    op_type1, op_type2 = op_parts[0], op_parts[1]
+                    return self.get_op_time(op_type1, stage_id) + self.get_op_time(op_type2, stage_id)
 
         if op_type not in self.op_times:
             raise ValueError(f"Invalid operation type: {op_type}")
@@ -332,3 +330,10 @@ class Schedule:
         ideal_time = ideal_time * self.config.num_batches / self.config.num_devices
 
         return (actual_time - ideal_time) / ideal_time
+
+    def get_device_running_time(self):
+        device_time = [0] * self.config.num_devices
+        for dev_id in range(self.config.num_devices):
+            for op in self.device_queues[dev_id].ops:
+                device_time[dev_id] += op.end_time - op.start_time
+        return device_time
