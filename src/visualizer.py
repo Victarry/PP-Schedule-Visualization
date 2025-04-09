@@ -89,11 +89,6 @@ def get_color(op_type: str, stage_id: int, num_devices: int):
 
     # Improved teal/turquoise palette with low saturation and high brightness
     backward_d_colors = [
-        "#ccffff",  # Very light cyan
-        "#b3ffff",  # Pale cyan
-        "#99ffff",  # Light cyan
-        "#80ffff",  # Cyan
-        "#66e6e6",  # Soft teal
         "#4dcccc",  # Light teal
         "#33b3b3",  # Teal
         "#009999",  # Medium teal
@@ -102,12 +97,6 @@ def get_color(op_type: str, stage_id: int, num_devices: int):
 
     # Improved green palette with low saturation and high brightness
     backward_w_colors = [
-        "#ccffe6",  # Very light mint
-        "#b3ffd9",  # Pale mint
-        "#99ffcc",  # Light mint
-        "#80ffbf",  # Mint green
-        "#66e6a6",  # Soft green
-        "#4dcc8c",  # Light green
         "#33b373",  # Medium green
         "#009959",  # Forest green
         "#008040",  # Dark green
@@ -162,7 +151,8 @@ def create_pipeline_figure(
             max_batch = max(max_batch, task["batch"])
     
     # Flag to determine whether to show text labels
-    show_text_labels = max_batch <= 16
+    num_operations_per_device = len(schedule_data[0])
+    show_text_labels = num_operations_per_device <= 64
 
     # Create a figure
     fig = go.Figure()
