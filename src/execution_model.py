@@ -69,7 +69,7 @@ class DeviceQueue:
     def add_operation(self, op: Operation):
         assert op.stage_id in self.stages
         self.ops.append(op)
-        assert op.device_id is None
+        assert op.device_id is None, f"Operation {op.batch_id}, {op.stage_id}, {op.op_type} already has a device id on {op.device_id}"
         op.device_id = self.device_id
 
 
@@ -97,6 +97,7 @@ class ScheduleConfig:
                 "forward": 1.0,
                 "backward_D": 1.0,
                 "backward_W": 1.0,
+                "backward": 2.0,
             }
         else:
             self.op_times = {
@@ -128,9 +129,14 @@ class ScheduleConfig:
         self.num_stages_per_device = num_stages // num_devices
 
         self.init_device_to_stages()
-        assert (
-            sum(len(stages) for stages in self.device_to_stages.values()) == num_stages
-        )
+        if self.placement_strategy == "dualpipe":
+            assert (
+                sum(len(stages) for stages in self.device_to_stages.values()) == num_stages * 2
+            )
+        else:
+            assert (
+                sum(len(stages) for stages in self.device_to_stages.values()) == num_stages
+            )
 
     def init_device_to_stages(self):
         if self.placement_strategy == "standard":
@@ -145,14 +151,27 @@ class ScheduleConfig:
             for i in range(self.num_stages):
                 device_to_put = i % self.num_devices
                 self.device_to_stages[device_to_put].append(i)
+        elif self.placement_strategy == "dualpipe":
+            # For DualPipe, each device has two stages 
+            assert self.num_devices == self.num_stages, "DualPipe requires num_devices == num_stages"
+            assert self.num_devices % 2 == 0, "DualPipe requires an even number of devices"
+            self.device_to_stages = defaultdict(list)
+            for i in range(self.num_stages):
+                self.device_to_stages[i] = [i, self.num_stages - i - 1]
         else:
             raise ValueError(f"Invalid placement strategy: {self.placement_strategy}")
 
     def get_op_time(self, op_type: str, stage_id: int):
         # For overlapped operations, extract the original operation types
         if op_type.startswith("overlapped_"):
-            if op_type in self.op_times and self.op_times[op_type][stage_id]:
-                return self.op_times[op_type][stage_id]
+            if op_type in self.op_times:
+                if isinstance(self.op_times[op_type], dict):
+                    if stage_id in self.op_times[op_type]:
+                        return self.op_times[op_type][stage_id]
+                    else:
+                        raise ValueError(f"No time specified for operation {op_type} at stage {stage_id}")
+                else:
+                    return self.op_times[op_type]
             else:
                 op_parts = op_type.split("_")[1:]
                 if len(op_parts) >= 2:
@@ -173,20 +192,25 @@ class ScheduleConfig:
 
 
 class Schedule:
-    def __init__(self, config: ScheduleConfig):
+    def __init__(self, config: ScheduleConfig, init_ops: bool = True):
         self.ops = {}  # (batch_id, stage_id, op_type) -> Operation
         self.device_queues: List[DeviceQueue] = []
         for dev_id in range(config.num_devices):
             self.device_queues.append(DeviceQueue(config.device_to_stages[dev_id], dev_id))
         self.config = config
 
-        self.init_operations()
+        if init_ops:
+            self.init_operations()
         self.op_to_overlapped = {}
     
     def register_overlapped_operation(self, overlapped_op: OverlappedOperation):
         for op in overlapped_op.operations:
             self.op_to_overlapped[(op.batch_id, op.stage_id, op.op_type)] = overlapped_op
             self.ops[(op.batch_id, op.stage_id, op.op_type)] = overlapped_op
+    
+    def register_operation(self, op: Operation):
+        assert (op.batch_id, op.stage_id, op.op_type) not in self.ops, f"Operation {op.batch_id}, {op.stage_id}, {op.op_type} already registered"
+        self.ops[(op.batch_id, op.stage_id, op.op_type)] = op
 
     def init_operations(self):
         op_types = ["forward", "backward"]
@@ -199,9 +223,12 @@ class Schedule:
                         batch_id, stage_id, op_type
                     )
 
-    def get_op(self, batch_id: int, stage_id: int, op_type: str):
+    def get_op(self, batch_id: int, stage_id: int, op_type: str, allow_none=False):
         if (batch_id, stage_id, op_type) in self.op_to_overlapped:
             return self.op_to_overlapped[(batch_id, stage_id, op_type)]
+        if allow_none:
+            if (batch_id, stage_id, op_type) not in self.ops:
+                return None
         return self.ops[(batch_id, stage_id, op_type)]
 
     def get_dependencies(self, op: Operation, include_device_dependency=True):
@@ -226,20 +253,55 @@ class Schedule:
         if self.config.split_backward:
             if op.op_type == "backward_D":
                 if op.stage_id < self.config.num_stages - 1:
-                    deps.append(
-                        (
-                            self.get_op(op.batch_id, op.stage_id + 1, "backward_D"),
-                            self.config.p2p_latency,
+                    op_bwd_d = self.get_op(op.batch_id, op.stage_id + 1, "backward_D", allow_none=True)
+                    if op_bwd_d is not None:
+                        deps.append(
+                            (
+                                op_bwd_d,
+                                self.config.p2p_latency,
+                            )
                         )
-                    )
+                    else:
+                        deps.append(
+                            (
+                                self.get_op(op.batch_id, op.stage_id + 1, "backward"),
+                                self.config.p2p_latency,
+                            )
+                        )
             elif op.op_type == "backward_W":
                 if op.stage_id < self.config.num_stages - 1:
-                    deps.append(
-                        (
-                            self.get_op(op.batch_id, op.stage_id, "backward_D"),
-                            self.config.p2p_latency,
+                    op_bwd_d = self.get_op(op.batch_id, op.stage_id, "backward_D", allow_none=True)
+                    if op_bwd_d is not None:
+                        deps.append(
+                            (
+                                op_bwd_d,
+                                self.config.p2p_latency,
+                            )
                         )
-                    )
+                    else:
+                        deps.append(
+                            (
+                                self.get_op(op.batch_id, op.stage_id, "backward"),
+                                self.config.p2p_latency,
+                            )
+                        )
+            elif op.op_type == "backward":
+                if op.stage_id < self.config.num_stages - 1:
+                    op_bwd = self.get_op(op.batch_id, op.stage_id + 1, "backward", allow_none=True)
+                    if op_bwd is not None:
+                        deps.append(
+                            (
+                                op_bwd,
+                                self.config.p2p_latency,
+                            )
+                        )
+                    else:
+                        deps.append(
+                            (
+                                self.get_op(op.batch_id, op.stage_id + 1, "backward_D"),
+                                self.config.p2p_latency,
+                            )
+                        )
         else:
             if op.op_type == "backward":
                 if op.stage_id < self.config.num_stages - 1:

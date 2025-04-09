@@ -3,6 +3,7 @@
 uv.lock
 outputs/
 .cursor/*
+*.json
 
 # Uncomment below if you want to include these files
 # !assets/*.png

@@ -18,6 +18,7 @@ Pipeline parallelism is a technique used to train large models by partitioning t
   - Zero-Bubble 1F1B (ZB-1P)
   - 1F1B with computation-communication overlap
   - Interleaved 1F1B with computation-communication overlap
+  - DualPipe (Bidirectional pipeline parallelism with full forward-backward overlap)
 
 - **Visualization**:
   - Interactive visualization dashboard using Plotly/Dash
@@ -56,6 +57,12 @@ uv run python main.py strategy=zb1p num_devices=4 num_stages=4 num_batches=8
 ```
 ![zb1p](assets/zb1p.png)
 
+### Running for DualPipe strategy:
+```bash
+uv run python main.py strategy=dualpipe num_devices=8 num_stages=8 num_batches=20
+```
+![dualpipe](assets/dualpipe.png)
+
 ### Running for 1F1B-batch-overlap strategy:
 ```bash
 uv run python main.py strategy=1f1b_overlap num_devices=4 num_stages=4 num_batches=8
@@ -68,9 +75,23 @@ uv run python main.py strategy=1f1b_interleave_overlap num_devices=4 num_stages=
 ```
 ![1f1b_interleave_overlap](assets/1f1b_interleave_overlap.png)
 
+
 ## Configuration
 
 The default configuration is in `conf/config.yaml`. You can override any parameter on the command line or create configuration groups for different scenarios.
+
+#### Override Specific Parameters
+
+You can override specific parameters at runtime:
+```bash
+uv run python main.py op_times.forward=0.5 op_times.backward=1.0 num_batches=6
+```
+
+Use DualPipe as an example, you can manually set different time for forward/backward/backward_D/backward_W/overlapped_forward_backward:
+```bash
+uv run python main.py strategy=dualpipe num_devices=8 num_stages=8 num_batches=32 op_times.forward=1.0 op_times.backward=2.0 op_times.backward_D=1.0 op_times.backward_W=1.0 op_times.overlapped_forward_backward=2.5
+```
+
 
 ### Using Different Configuration Files
 
@@ -90,12 +111,6 @@ You can use different configuration files with Hydra in several ways:
    uv run python main.py --config-name=model_A
    ```
 
-#### Override Specific Parameters
-
-You can also override specific parameters at runtime:
-```bash
-uv run python main.py op_times.forward=0.5 op_times.backward=1.0 num_batches=6
-```
 
 ## Project Structure
 
