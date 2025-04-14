@@ -13,7 +13,7 @@ op_times:
   backward: 2.0
   backward_D: 1.0
   backward_W: 1.0
-  overlapped_forward_backward: 2.0
+  overlapped_forward_backward: 3.0
   
   # Option 2: Commented example of stage-specific configuration
   # forward:
