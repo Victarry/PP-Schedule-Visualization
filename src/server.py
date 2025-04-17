@@ -36,14 +36,13 @@ default_values = {
     "num_devices": 4,
     "num_stages": 8,
     "num_batches": 16,
-    "p2p_latency": 0.1,
+    "p2p_latency": 0.0,
     "op_time_forward": 1.0,
     "op_time_backward_d": 1.0,
     "op_time_backward_w": 1.0,
     "op_time_backward": 2.0,
     "strategy": "1f1b_interleave",
-    "split_backward": False,
-    "placement_strategy": "interleave"
+    "op_time_overlapped_fwd_bwd": None,
 }
 
 # Define input groups using dbc components
@@ -77,7 +76,7 @@ scheduling_params_card = dbc.Card(
             dbc.Checklist(
                 id='strategy-checklist',
                 options=[{'label': k, 'value': k} for k in STRATEGIES.keys()],
-                value=[default_values["strategy"]],
+                value=list(STRATEGIES.keys()),
                 inline=False,
             ),
         ], className="mb-3"),
@@ -105,6 +104,11 @@ timing_params_card = dbc.Card(
             dbc.Label("Backward W (Weight Grad):"),
             dbc.Input(id='op_time_backward_w', type='number', value=default_values["op_time_backward_w"], min=0.01, step=0.01),
             dbc.FormText("Used when strategy requires split backward (e.g., ZB-1P, DualPipe)."),
+        ], className="mb-3"),
+        html.Div([
+            dbc.Label("Overlapped Forward+Backward:"),
+            dbc.Input(id='op_time_overlapped_fwd_bwd', type='number', placeholder="Optional: Defaults to Fwd + Bwd times", min=0.01, step=0.01, value=default_values["op_time_overlapped_fwd_bwd"]),
+            dbc.FormText("Specify a custom duration if Forward and Backward ops overlap completely."),
         ], className="mb-3"),
     ])
 )
@@ -147,14 +151,22 @@ app.layout = dbc.Container([
     State('op_time_backward', 'value'),
     State('op_time_backward_d', 'value'),
     State('op_time_backward_w', 'value'),
+    State('op_time_overlapped_fwd_bwd', 'value'),
     State('strategy-checklist', 'value'),
     prevent_initial_call=True
 )
 def update_graph(n_clicks, num_devices, num_stages, num_batches, p2p_latency,
                  op_time_forward, op_time_backward, op_time_backward_d, op_time_backward_w,
+                 op_time_overlapped_fwd_bwd,
                  selected_strategies):
 
+    # Define the desired display order for strategies
+    strategy_display_order = ["1f1b", "1f1b_interleave", "1f1b_overlap", "1f1b_interleave_overlap", "dualpipe", "zb1p"]
+    
     output_components = []
+    valid_results = []  # Store (strategy_name, schedule, vis_data) for valid schedules
+    error_messages = []  # Store (strategy_name, error_message) for errors
+    automatic_adjustments = []  # Store messages about automatic parameter adjustments
 
     if not selected_strategies:
         return [dbc.Alert("Please select at least one scheduling strategy.", color="warning")]
@@ -164,8 +176,25 @@ def update_graph(n_clicks, num_devices, num_stages, num_batches, p2p_latency,
 
     for strategy in selected_strategies:
         error_message = ""
-        fig = go.Figure()
         placement_strategy = ""
+        
+        # Use local copies of params that might be adjusted for this strategy
+        current_num_stages = num_stages
+        current_num_devices = num_devices
+        
+        # Apply automatic adjustments for dualpipe
+        if strategy == "dualpipe" and num_stages != num_devices:
+            current_num_stages = num_devices  # Force num_stages = num_devices for dualpipe
+            automatic_adjustments.append(
+                f"Strategy '{strategy}': Number of Stages automatically adjusted to {num_devices} to match Number of Devices."
+            )
+
+        # Apply automatic adjustments for strategies that require num_stages == num_devices
+        if strategy in ["1f1b", "1f1b_overlap", "zb1p"] and num_stages != num_devices:
+            current_num_stages = num_devices
+            automatic_adjustments.append(
+                f"Strategy '{strategy}': Number of Stages automatically adjusted to {num_devices} to match Number of Devices."
+            )
 
         split_backward = strategy in ["zb1p", "dualpipe"]
 
@@ -177,32 +206,57 @@ def update_graph(n_clicks, num_devices, num_stages, num_batches, p2p_latency,
         if not error_message:
             if strategy in ["1f1b", "1f1b_overlap", "zb1p"]:
                 placement_strategy = "standard"
-                if num_devices != num_stages:
-                    error_message = f"Strategy '{strategy}': Requires Number of Stages == Number of Devices."
+                # No need to check num_stages == num_devices as we've enforced it above
             elif strategy in ["1f1b_interleave", "1f1b_interleave_overlap"]:
                 placement_strategy = "interleave"
-                if num_stages % num_devices != 0:
+                if current_num_stages % current_num_devices != 0:
                     error_message = f"Strategy '{strategy}': Requires Number of Stages to be divisible by Number of Devices."
             elif strategy == "dualpipe":
                 placement_strategy = "dualpipe"
-                if num_stages % 2 != 0:
+                if current_num_stages % 2 != 0:
                     error_message = f"Strategy '{strategy}' (DualPipe): Requires an even number of stages."
-                elif num_stages != num_devices:
-                    error_message = f"Strategy '{strategy}' (DualPipe): Requires Number of Stages == Number of Devices."
 
+        # Create adjusted operation times based on placement strategy
         if not error_message:
             try:
-                op_times = { "forward": float(op_time_forward) }
+                # Calculate number of stages per device for time adjustment
+                stages_per_device = current_num_stages // current_num_devices
+                
+                # Calculate scaling factor - this normalizes operation time by stages per device
+                # For standard placement (1:1 stage:device mapping), this remains 1.0
+                # For interleaved, this scales down the time proportionally
+                time_scale_factor = 1.0 / stages_per_device if stages_per_device > 0 else 1.0
+                
+                if stages_per_device > 1:
+                    automatic_adjustments.append(
+                        f"Strategy '{strategy}': Operation times scaled by 1/{stages_per_device} to account for {stages_per_device} stages per device."
+                    )
+                
+                # Apply scaling to operation times
+                op_times = { 
+                    "forward": float(op_time_forward) * time_scale_factor 
+                }
+                
                 if split_backward:
-                    op_times["backward_D"] = float(op_time_backward_d)
-                    op_times["backward_W"] = float(op_time_backward_w)
-                    op_times["backward"] = float(op_time_backward_d) + float(op_time_backward_w)
+                    op_times["backward_D"] = float(op_time_backward_d) * time_scale_factor
+                    op_times["backward_W"] = float(op_time_backward_w) * time_scale_factor
+                    # Keep combined for compatibility
+                    op_times["backward"] = (float(op_time_backward_d) + float(op_time_backward_w)) * time_scale_factor
                 else:
-                    op_times["backward"] = float(op_time_backward)
+                    op_times["backward"] = float(op_time_backward) * time_scale_factor
+
+                if op_time_overlapped_fwd_bwd is not None:
+                    try:
+                        overlapped_val = float(op_time_overlapped_fwd_bwd)
+                        if overlapped_val > 0:
+                             # Scale overlapped time too
+                             op_times["overlapped_forward_backward"] = overlapped_val * time_scale_factor
+                    except (ValueError, TypeError):
+                         pass
 
                 config = ScheduleConfig(
-                    num_devices=int(num_devices),
-                    num_stages=int(num_stages),
+                    num_devices=int(current_num_devices),
+                    num_stages=int(current_num_stages),  # Use adjusted value
                     num_batches=int(num_batches),
                     p2p_latency=float(p2p_latency),
                     placement_strategy=placement_strategy,
@@ -217,13 +271,9 @@ def update_graph(n_clicks, num_devices, num_stages, num_batches, p2p_latency,
                 schedule = schedule_func(config)
                 schedule.execute()
 
+                # Store valid results instead of creating figure immediately
                 vis_data = convert_schedule_to_visualization_format(schedule)
-                fig = create_pipeline_figure(vis_data, show_progress=False)
-
-                output_components.append(html.Div([
-                    html.H4(f"Schedule: {strategy}", className="text-center mt-3 mb-2"),
-                    dcc.Graph(figure=fig)
-                ]))
+                valid_results.append((strategy, schedule, vis_data))
 
             except (AssertionError, ValueError, TypeError) as e:
                  error_message = f"Error generating schedule for '{strategy}': {e}"
@@ -235,9 +285,56 @@ def update_graph(n_clicks, num_devices, num_stages, num_batches, p2p_latency,
                  traceback.print_exc()
 
         if error_message:
-             output_components.append(
-                 dbc.Alert(error_message, color="danger", className="mt-3")
-             )
+             error_messages.append((strategy, error_message))
+
+    # Add alerts for any automatic parameter adjustments
+    for adjustment in automatic_adjustments:
+        output_components.append(
+            dbc.Alert(adjustment, color="info", dismissable=True)
+        )
+
+    # If we have valid results, calculate the maximum execution time across all schedules
+    if valid_results:
+        # Find global maximum execution time
+        max_execution_time = max(schedule.get_total_execution_time() for _, schedule, _ in valid_results)
+        
+        # Sort valid results according to the display order
+        sorted_valid_results = []
+        
+        # First add strategies in the predefined order
+        for strategy_name in strategy_display_order:
+            for result in valid_results:
+                if result[0] == strategy_name:
+                    sorted_valid_results.append(result)
+        
+        # Then add any remaining strategies that might not be in the predefined order
+        for result in valid_results:
+            if result[0] not in strategy_display_order:
+                sorted_valid_results.append(result)
+        
+        # Create figures with aligned x-axis, using the sorted results
+        for strategy, _, vis_data in sorted_valid_results:
+            fig = create_pipeline_figure(vis_data, max_time=max_execution_time, show_progress=False)
+            
+            # Force the x-axis range to be the same for all figures
+            # Add a small margin (5%) for better visualization
+            margin = max_execution_time * 0.05
+            fig.update_layout(
+                xaxis=dict(
+                    range=[0, max_execution_time + margin]
+                )
+            )
+            
+            output_components.append(html.Div([
+                html.H4(f"Schedule: {strategy}", className="text-center mt-3 mb-2"),
+                dcc.Graph(figure=fig)
+            ]))
+    
+    # Add error messages to output
+    for strategy, msg in error_messages:
+        output_components.append(
+            dbc.Alert(msg, color="danger", className="mt-3")
+        )
 
     return output_components
 
