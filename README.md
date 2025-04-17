@@ -1,4 +1,4 @@
-# Pipeline Parallelism Emulation
+# Pipeline Parallelism Emulation and Visualization
 
 This project provides tools for emulating and visualizing pipeline parallelism strategies used in large language model training.
 
@@ -37,7 +37,20 @@ Setup `uv` if not installed on your computer:
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-## Usage
+
+## Running the Interactive Server
+
+To visualize schedules interactively:
+
+```bash
+uv run src/server.py
+```
+
+This will start a Dash server (usually on `http://127.0.0.1:8050/`). Open this URL in your web browser.
+
+You can then adjust parameters like the number of devices, stages, batches, operation times, and select different scheduling strategies to see the resulting pipeline visualization.
+
+## Running from Command Line
 
 ### Running for 1F1B strategy:
 ```bash
