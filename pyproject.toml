@@ -24,6 +24,7 @@ dependencies = [
     "pandas>=2.1.0",
     "numpy>=1.26.0",
     "tqdm>=4.67.0",
+    "dash-bootstrap-components>=1.7.1",
 ]
 
 [project.optional-dependencies]
