@@ -9,7 +9,7 @@ description = "Pipeline Parallelism Emulation and Visualization"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
-    {name = "Project Author"}
+    {name = "Zhenhuan Liu"}
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
