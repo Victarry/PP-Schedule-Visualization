@@ -2,8 +2,6 @@ import dash
 import dash_bootstrap_components as dbc
 from dash import dcc, html, Input, Output, State, callback_context
 import plotly.graph_objects as go
-import webbrowser
-from threading import Timer
 
 from src.execution_model import ScheduleConfig, Schedule
 from src.strategies import (
@@ -15,9 +13,6 @@ from src.strategies import (
     generate_dualpipe_schedule
 )
 from src.visualizer import convert_schedule_to_visualization_format, create_pipeline_figure
-
-def open_browser(port):
-    webbrowser.open_new(f"http://127.0.0.1:{port}")
 
 STRATEGIES = {
     "1f1b": generate_1f1b_schedule,
@@ -338,8 +333,8 @@ def update_graph(n_clicks, num_devices, num_stages, num_batches, p2p_latency,
 
     return output_components
 
+# For Hugging Face Spaces deployment
+server = app.server
+
 if __name__ == '__main__':
-    port = 8050
-    # Timer(1, open_browser, args=(port,)).start() # Optional: automatically open browser
-    print(f"Dash server running on http://127.0.0.1:{port}")
-    app.run_server(debug=True, port=port) 
+    app.run_server(debug=False, host='0.0.0.0', port=7860) 
