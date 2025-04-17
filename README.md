@@ -2,6 +2,14 @@
 
 This project provides tools for emulating and visualizing pipeline parallelism strategies used in large language model training.
 
+## Online Demo
+
+**Try it online!** This tool is deployed and accessible on Hugging Face Spaces:
+
+🔗 **[https://huggingface.co/spaces/Victarry/PP-schedule-visualizer](https://huggingface.co/spaces/Victarry/PP-schedule-visualizer)**
+
+No installation required - just visit the link and start exploring pipeline parallelism scheduling strategies directly in your browser!
+
 ## Overview
 
 Pipeline parallelism is a technique used to train large models by partitioning the model across multiple devices and processing data in a pipelined fashion. This project allows you to:
