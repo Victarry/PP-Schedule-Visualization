@@ -371,11 +371,12 @@ def update_graph(n_clicks, num_devices, num_stages, num_batches, p2p_latency,
 
     strategy_display_order = ["1f1b", "1f1b_interleave", "1f1b_overlap", "1f1b_interleave_overlap", "dualpipe", "zb1p"]
 
-    graph_components = [] # Renamed from output_components
-    toast_components = [] # New list for toasts
+    graph_components = []
+    toast_components = []
     valid_results = []
     error_messages = []
     automatic_adjustments = []
+    execution_times = [] # Add list to store execution times
 
     # Use a variable to track if initial validation fails
     initial_validation_error = None
@@ -489,6 +490,8 @@ def update_graph(n_clicks, num_devices, num_stages, num_batches, p2p_latency,
                 schedule.execute()
                 vis_data = convert_schedule_to_visualization_format(schedule)
                 valid_results.append((strategy, schedule, vis_data))
+                # Store execution time
+                execution_times.append((strategy, schedule.get_total_execution_time()))
 
             except (AssertionError, ValueError, TypeError) as e:
                  error_message = f"Error for '{strategy}': {e}"
@@ -530,19 +533,69 @@ def update_graph(n_clicks, num_devices, num_stages, num_batches, p2p_latency,
         max_execution_time = max(schedule.get_total_execution_time() for _, schedule, _ in valid_results)
         sorted_valid_results = sorted(valid_results, key=lambda x: strategy_display_order.index(x[0]) if x[0] in strategy_display_order else float('inf'))
 
+        # Prepare graphs for single-column layout
+        graph_components = [] # Use graph_components again
         for strategy, _, vis_data in sorted_valid_results:
             fig = create_pipeline_figure(vis_data, max_time=max_execution_time, show_progress=False)
             margin = max_execution_time * 0.05
             fig.update_layout(
                 xaxis=dict(range=[0, max_execution_time + margin])
             )
-            graph_components.append(html.Div([
-                html.H4(f"Schedule: {strategy}", className="text-center mt-3 mb-2"),
-                dcc.Graph(figure=fig)
-            ]))
+            # Append the Div directly for vertical stacking
+            graph_components.append(
+                html.Div([
+                    html.H4(f"Schedule: {strategy}", className="text-center mt-3 mb-2"),
+                    dcc.Graph(figure=fig)
+                ])
+            )
 
-    # Return graph components and toast components
-    return graph_components, toast_components
+        # No grid arrangement needed for single column
+        # rows = [] ... removed ...
+
+    # If there are graphs, use the component list, otherwise show a message
+    output_content = []
+    if graph_components: # Check if graph_components list is populated
+        output_content = graph_components # Assign the list of components
+    elif not toast_components: # Only show 'no results' if no errors/adjustments either
+        output_content = dbc.Alert("Click 'Generate Schedule' to see results.", color="info", className="mt-3")
+
+    # Add the execution time table if there are results
+    if execution_times:
+        # Sort times based on execution time (ascending)
+        sorted_times = sorted(execution_times, key=lambda x: x[1])
+        min_time = sorted_times[0][1] if sorted_times else None
+
+        table_header = [html.Thead(html.Tr([html.Th("Strategy"), html.Th("Total Execution Time (ms)")]))]
+        table_rows = []
+        for strategy, time in sorted_times:
+            row_class = "table-success" if time == min_time else ""
+            table_rows.append(html.Tr([html.Td(strategy), html.Td(f"{time:.2f}")], className=row_class))
+
+        table_body = [html.Tbody(table_rows)]
+        summary_table = dbc.Table(
+            table_header + table_body,
+            bordered=True,
+            striped=True,
+            hover=True,
+            responsive=True,
+            color="light", # Apply a light theme color
+            className="mt-5" # Add margin top
+        )
+        # Prepend title to the table
+        table_component = html.Div([
+            html.H4("Execution Time Summary", className="text-center mt-4 mb-3"),
+            summary_table
+        ])
+
+        # Append the table component to the output content
+        # If output_content is just the alert, replace it. Otherwise, append.
+        if isinstance(output_content, list):
+            output_content.append(table_component)
+        else: # It must be the Alert
+            output_content = [output_content, table_component] # Replace Alert with list
+
+    # Return graph components (single column list or message) and toast components
+    return output_content, toast_components
 
 # For Hugging Face Spaces deployment
 server = app.server
