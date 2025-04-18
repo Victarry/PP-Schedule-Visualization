@@ -158,6 +158,13 @@ class ScheduleConfig:
             self.device_to_stages = defaultdict(list)
             for i in range(self.num_stages):
                 self.device_to_stages[i] = [i, self.num_stages - i - 1]
+        elif self.placement_strategy == "dualpipe_v":
+            assert self.num_devices % 2 == 0, "DualPipe-V requires an even number of devices"
+            assert self.num_stages == self.num_devices * 2, "DualPipe-V requires num_stages == num_devices * 2"
+            assert self.split_backward, "DualPipe-V requires split_backward=True"
+            self.device_to_stages = defaultdict(list)
+            for i in range(self.num_devices):
+                self.device_to_stages[i] = [i, self.num_stages - i - 1]
         else:
             raise ValueError(f"Invalid placement strategy: {self.placement_strategy}")
 
