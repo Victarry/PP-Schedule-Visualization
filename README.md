@@ -84,6 +84,12 @@ uv run python main.py strategy=dualpipe num_devices=8 num_stages=8 num_batches=2
 ```
 ![dualpipe](assets/dualpipe.png)
 
+### Running for DualPipe-V strategy
+```bash
+uv run python main.py strategy=dualpipe_v num_devices=4 num_stages=8 num_batches=10
+```
+![dualpipe_v](assets/dualpipe_v.png)
+
 ### Running for 1F1B-batch-overlap strategy:
 ```bash
 uv run python main.py strategy=1f1b_overlap num_devices=4 num_stages=4 num_batches=8
