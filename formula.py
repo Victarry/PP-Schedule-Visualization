@@ -1,18 +1,18 @@
 # PP schedule config
 from src.execution_model import ScheduleConfig
-from src.strategies import generate_dualpipe_v_schedule
+from src.strategies import generate_1f1b_interleave_overlap_schedule, generate_dualpipe_v_schedule
 
 
 p = 4 # PP size
 v = 2 # number of virtual stages
-m = 10 # total microbatches
+m = 16 # total microbatches
 
 # stage time config
 F = 2.0 # forward time in one PP rank for all stages
 W = 2.0 # backward_W time in one PP rank for all stages
 D = 2.0 # backward_D time in one PP rank for all stages
 B = W + D # backward time in one PP rank for all stages
-FwB = 6 # overlapped forward backward time in one PP rank for all stages
+FwB = 5.5 # overlapped forward backward time in one PP rank for all stages
 
 op_times = {
   "forward": F,
@@ -78,5 +78,39 @@ def dualpipe_v_execution_time_by_emulate():
 
     return dual_pipe_schedule.get_total_execution_time()
 
+def overlap_1f1b_execution_time_by_emulate():
+    op_times_per_stage = {
+        "forward": F / v,
+        "backward": B / v,
+        "backward_D": D / v,
+        "backward_W": W / v,
+        "overlapped_forward_backward": FwB / v
+    }
+    overlap_1f1b_schedule_config = ScheduleConfig(
+        num_devices=p,
+        num_stages=p*v,
+        num_batches=m,
+        p2p_latency=0.0,
+        op_times=op_times_per_stage,
+        split_backward=False,
+        placement_strategy="interleave",
+    )
+    overlap_1f1b_schedule = generate_1f1b_interleave_overlap_schedule(overlap_1f1b_schedule_config)
+    overlap_1f1b_schedule.execute()
+    return overlap_1f1b_schedule.get_total_execution_time()
+
+def overlap_1f1b_execution_time_by_formula():
+    forward_bubble = (p-1) * F / v
+    backward_bubble = (p-1) * B / v
+
+    non_overlapped_batches = p*(v - 1) + 1
+    forward_backward_time = non_overlapped_batches * (F + B) / v 
+    overlapped_time = (m*v - non_overlapped_batches) * FwB / v
+
+    total_time = forward_bubble + backward_bubble + forward_backward_time + overlapped_time
+    return total_time
+
 print(f"DualPipe-V by emulate: {dualpipe_v_execution_time_by_emulate()}")
 print(f"DualPipe-V by formula detailed: {dualpipe_v_execution_time_by_formula_detailed()}")
+print(f"Overlap-1f1b by emulate: {overlap_1f1b_execution_time_by_emulate()}")
+print(f"Overlap-1f1b by formula: {overlap_1f1b_execution_time_by_formula()}")
