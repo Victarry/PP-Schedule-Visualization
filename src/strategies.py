@@ -589,17 +589,20 @@ def generate_dualpipe_schedule(config: ScheduleConfig):
         # Step 4 (Main step): nF0B1F1B0
         step_4_count = half_num_chunks - num_devices + half_rank + 1
         for i in range(step_4_count):
-            # if i == 0 and is_middle_rank:
-            # Schedule F0, B1_D, W1 sequentially for middle ranks on first iteration
-            # _schedule_forward_chunk(device_id, 0, is_in_second_half) # F0
-            # _schedule_backward_chunk(device_id, 1, is_in_second_half)# B1
-            # _schedule_backward_weight_chunk(device_id, 1, is_in_second_half)  # W1
-            # else:
-            # Overlap F0 and B1_D, then schedule W1
-            _schedule_forward_backward_chunk(
-                device_id, 0, 1, is_in_second_half
-            )  # F0+B1
-
+            if i == 0:
+                if is_middle_rank:
+                    # Schedule F0, B1_D, W1 sequentially for middle ranks on first iteration
+                    _schedule_forward_chunk(device_id, 0, is_in_second_half) # F0
+                    _schedule_backward_chunk(device_id, 1, is_in_second_half)# B1
+                else:
+                    # Overlap F0 and B1_D, then schedule W1
+                    _schedule_forward_backward_chunk(
+                        device_id, 0, 1, is_in_second_half
+                    )  # F0+B1
+            else:
+                _schedule_forward_backward_chunk(
+                    device_id, 0, 1, is_in_second_half
+                )  # F0+B1
             # Overlap F1 and B0_D, then schedule W0
             _schedule_forward_backward_chunk(
                 device_id, 1, 0, is_in_second_half
