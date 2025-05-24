@@ -398,15 +398,11 @@ app.layout = html.Div([
                         html.A([
                             html.I(className="bi bi-github me-2"),
                             "View on GitHub"
-                        ], href="#", className="small text-muted d-block mb-2"),
-                        html.A([
-                            html.I(className="bi bi-book me-2"),
-                            "Documentation"
-                        ], href="#", className="small text-muted d-block mb-2"),
+                        ], href="https://github.com/Victarry/PP-Schedule-Visualization", className="small text-muted d-block mb-2"),
                         html.A([
                             html.I(className="bi bi-question-circle me-2"),
                             "Report an Issue"
-                        ], href="#", className="small text-muted d-block")
+                        ], href="https://github.com/Victarry/PP-Schedule-Visualization/issues", className="small text-muted d-block")
                     ])
                 ], md=4)
             ]),
