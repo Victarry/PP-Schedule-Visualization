@@ -38,6 +38,7 @@ default_values = {
     "op_time_backward": 2.0,
     "strategy": ["1f1b_interleave"],
     "op_time_overlapped_fwd_bwd": None,
+    "microbatch_group_size_per_vp_stage": None,
 }
 
 # Define input groups using dbc components
@@ -186,6 +187,20 @@ timing_params_card = dbc.Card(
                         placement="right"
                     )
                 ], className="mb-3"),
+                html.Div([
+                    html.Div([
+                        dbc.Label("Microbatch Group Size per VP Stage", html_for='microbatch_group_size_per_vp_stage', className="form-label d-inline-block me-1"),
+                        html.I(className="bi bi-info-circle", id="tooltip-target-microbatch-group", style={"cursor": "pointer"})
+                    ]),
+                    dbc.Input(id='microbatch_group_size_per_vp_stage', type='number', placeholder=f"Defaults to num_devices", min=1, step=1, value=default_values["microbatch_group_size_per_vp_stage"]),
+                    dbc.FormText("Used for interleave strategies (1f1b_interleave, 1f1b_interleave_overlap)."),
+                    dbc.FormFeedback("Microbatch group size must be a positive integer if specified.", type="invalid", id="feedback-microbatch_group_size_per_vp_stage"),
+                    dbc.Tooltip(
+                        "Number of microbatches to process per virtual pipeline stage before switching to the next stage. Used primarily with interleave scheduling strategies. Defaults to the number of devices.",
+                        target="tooltip-target-microbatch-group",
+                        placement="right"
+                    )
+                ], className="mb-3"),
             ]
         )
     ]),
@@ -249,6 +264,7 @@ app.layout = dbc.Container([
     Output('op_time_backward_d', 'invalid'),
     Output('op_time_backward_w', 'invalid'),
     Output('op_time_overlapped_fwd_bwd', 'invalid'),
+    Output('microbatch_group_size_per_vp_stage', 'invalid'),
     # Outputs to control the visibility/content of FormFeedback (can also just control Input's invalid state)
     # We are primarily using the Input's `invalid` prop which automatically shows/hides associated FormFeedback
     # Output('feedback-num_devices', 'children'), ... (Add if more specific messages needed per validation type)
@@ -263,12 +279,13 @@ app.layout = dbc.Container([
     Input('op_time_backward_d', 'value'),
     Input('op_time_backward_w', 'value'),
     Input('op_time_overlapped_fwd_bwd', 'value'),
+    Input('microbatch_group_size_per_vp_stage', 'value'),
     Input('selected-strategies-store', 'data'), # Validate strategy selection
     prevent_initial_call=True # Prevent callback running on page load before user interaction
 )
 def validate_inputs(num_devices, num_stages, num_batches, p2p_latency,
                     op_time_forward, op_time_backward, op_time_backward_d, op_time_backward_w,
-                    op_time_overlapped_fwd_bwd, selected_strategies):
+                    op_time_overlapped_fwd_bwd, microbatch_group_size_per_vp_stage, selected_strategies):
     is_invalid = {
         "num_devices": num_devices is None or num_devices < 1,
         "num_stages": num_stages is None or num_stages < 1,
@@ -279,6 +296,7 @@ def validate_inputs(num_devices, num_stages, num_batches, p2p_latency,
         "op_time_backward_d": op_time_backward_d is not None and op_time_backward_d <= 0,
         "op_time_backward_w": op_time_backward_w is not None and op_time_backward_w <= 0,
         "op_time_overlapped_fwd_bwd": op_time_overlapped_fwd_bwd is not None and op_time_overlapped_fwd_bwd <= 0,
+        "microbatch_group_size_per_vp_stage": microbatch_group_size_per_vp_stage is not None and (microbatch_group_size_per_vp_stage < 1 or microbatch_group_size_per_vp_stage % 1 != 0),
     }
 
     # Validate strategy selection
@@ -318,6 +336,7 @@ def validate_inputs(num_devices, num_stages, num_batches, p2p_latency,
         is_invalid["op_time_backward_d"],
         is_invalid["op_time_backward_w"],
         is_invalid["op_time_overlapped_fwd_bwd"],
+        is_invalid["microbatch_group_size_per_vp_stage"],
         strategy_feedback # Update strategy feedback based on validation
     )
 
@@ -361,12 +380,13 @@ app.clientside_callback(
     State('op_time_backward_d', 'value'),
     State('op_time_backward_w', 'value'),
     State('op_time_overlapped_fwd_bwd', 'value'),
+    State('microbatch_group_size_per_vp_stage', 'value'),
     State('selected-strategies-store', 'data'),
     prevent_initial_call=True
 )
 def update_graph(n_clicks, num_devices, num_stages, num_batches, p2p_latency,
                  op_time_forward, op_time_backward, op_time_backward_d, op_time_backward_w,
-                 op_time_overlapped_fwd_bwd,
+                 op_time_overlapped_fwd_bwd, microbatch_group_size_per_vp_stage,
                  selected_strategies):
 
     strategy_display_order = ["1f1b", "1f1b_interleave", "1f1b_overlap", "1f1b_interleave_overlap", "dualpipe", "zb1p"]
@@ -480,6 +500,7 @@ def update_graph(n_clicks, num_devices, num_stages, num_batches, p2p_latency,
                     placement_strategy=placement_strategy,
                     split_backward=split_backward,
                     op_times=op_times,
+                    microbatch_group_size_per_vp_stage=int(microbatch_group_size_per_vp_stage) if microbatch_group_size_per_vp_stage is not None else None,
                 )
 
                 schedule_func = STRATEGIES.get(strategy)
