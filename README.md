@@ -1,3 +1,16 @@
+---
+title: Pipeline Parallelism Schedule Visualizer
+emoji: 📊
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+app_file: app.py
+pinned: false
+suggested_hardware: cpu-basic
+suggested_storage: small
+header: default
+---
+
 # Pipeline Parallelism Emulation and Visualization
 
 This project provides tools for emulating and visualizing pipeline parallelism strategies used in large language model training.
@@ -51,7 +64,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 To visualize schedules interactively:
 
 ```bash
-uv run src/server.py
+uv run app.py
 ```
 
 This will start a Dash server (usually on `http://127.0.0.1:8050/`). Open this URL in your web browser.

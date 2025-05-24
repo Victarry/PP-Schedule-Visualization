@@ -206,7 +206,7 @@ app.layout = dbc.Container([
                 type="circle",
                 children=html.Div(id='graph-output-container', style={"minHeight": "600px"})
             )
-        ], lg=8, md=7, sm=12, className="mb-4 mb-lg-0"),
+        ], lg=10, md=9, sm=12, className="mb-4 mb-lg-0"),
 
         # --- Right Column (Controls Area) ---
         dbc.Col([
@@ -228,7 +228,7 @@ app.layout = dbc.Container([
                     ),
                 )
             ], className="mt-3")
-        ], lg=4, md=5, sm=12)
+        ], lg=2, md=3, sm=12)
     ]),
 
     # --- Toast Container (Positioned Fixed) ---
