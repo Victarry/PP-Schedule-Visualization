@@ -126,4 +126,981 @@ body {
 /* Chart Container - Add basic styles, will be refined (Item 9) */
 #graph-output-container .plotly.graph-div {
     /* Add styles for the chart itself if needed */
+}
+
+/* Custom CSS for Pipeline Parallelism Schedule Visualizer */
+
+/* Smooth transitions for all interactive elements */
+* {
+    transition: all 0.3s ease;
+}
+
+/* Enhanced card hover effects */
+.card {
+    border-radius: 12px !important;
+    overflow: hidden;
+}
+
+.card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important;
+}
+
+/* Strategy card animations */
+.strategy-card {
+    border-radius: 10px;
+    position: relative;
+    overflow: hidden;
+}
+
+.strategy-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.1), transparent);
+    transition: left 0.5s ease;
+}
+
+.strategy-card:hover::before {
+    left: 100%;
+}
+
+.strategy-card.selected {
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+/* Enhanced button animations */
+.btn-primary {
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-primary::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.btn-primary:active::before {
+    width: 300px;
+    height: 300px;
+}
+
+/* Loading animation enhancement */
+._dash-loading {
+    position: relative;
+}
+
+._dash-loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 40px;
+    height: 40px;
+    margin: -20px 0 0 -20px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Tab animations */
+.nav-tabs .nav-link {
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.nav-tabs .nav-link::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 0;
+    height: 3px;
+    background: #667eea;
+    transform: translateX(-50%);
+    transition: width 0.3s ease;
+}
+
+.nav-tabs .nav-link:hover::after {
+    width: 100%;
+}
+
+.nav-tabs .nav-link.active::after {
+    width: 100%;
+}
+
+/* Metric card animations */
+.metric-card {
+    transition: all 0.3s ease;
+}
+
+.metric-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.15) !important;
+}
+
+/* Progress bar animations */
+.progress {
+    overflow: visible;
+}
+
+.progress-bar {
+    position: relative;
+    animation: progressAnimation 1s ease-out;
+}
+
+@keyframes progressAnimation {
+    from {
+        width: 0;
+    }
+}
+
+/* Toast animations */
+.toast {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Input focus effects */
+.form-control:focus {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15) !important;
+}
+
+/* Badge pulse animation */
+.badge {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Smooth scrolling */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Enhanced tooltip styling */
+.tooltip {
+    font-size: 0.875rem;
+}
+
+.tooltip-inner {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 8px 12px;
+    border-radius: 6px;
+}
+
+/* Graph container enhancements */
+.graph-container {
+    position: relative;
+}
+
+.graph-container::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(45deg, #667eea, #764ba2, #667eea);
+    border-radius: 10px;
+    opacity: 0;
+    z-index: -1;
+    transition: opacity 0.3s ease;
+}
+
+.graph-container:hover::before {
+    opacity: 0.1;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .main-header {
+        padding: 1.5rem 0;
+    }
+    
+    .main-header h1 {
+        font-size: 1.75rem;
+    }
+    
+    .strategy-card {
+        margin-bottom: 0.75rem;
+    }
+    
+    .metric-card {
+        margin-bottom: 1rem;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    body {
+        background-color: #1a1a1a;
+        color: #e0e0e0;
+    }
+    
+    .card {
+        background-color: #2a2a2a;
+        color: #e0e0e0;
+    }
+    
+    .form-control {
+        background-color: #3a3a3a;
+        border-color: #4a4a4a;
+        color: #e0e0e0;
+    }
+    
+    .form-control:focus {
+        background-color: #3a3a3a;
+        border-color: #667eea;
+        color: #e0e0e0;
+    }
+}
+
+/* Print styles */
+@media print {
+    .main-header {
+        background: none !important;
+        color: #000 !important;
+    }
+    
+    .card {
+        box-shadow: none !important;
+        border: 1px solid #ddd !important;
+    }
+    
+    .btn {
+        display: none !important;
+    }
+}
+
+/* Pipeline Parallelism Schedule Visualizer - Custom CSS */
+
+/* --- Base Typography & Colors --- */
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: #f8f9fa;
+    color: #212B36;
+    font-size: 14px;
+}
+
+/* --- Header Section --- */
+.main-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem 0;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.main-header h1 {
+    font-size: 2rem;
+    font-weight: 600;
+    margin-bottom: 0;
+}
+
+.main-header .lead {
+    font-size: 1.1rem;
+    opacity: 0.9;
+}
+
+/* --- Cards & Containers --- */
+.card {
+    border: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    transition: all 0.3s ease;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 24px;
+}
+
+.card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+/* --- Strategy Cards --- */
+.strategy-card {
+    cursor: pointer;
+    border: 2px solid #e9ecef;
+    transition: all 0.3s ease;
+    height: 100%;
+    border-radius: 10px;
+    background: white;
+    position: relative;
+    overflow: hidden;
+}
+
+.strategy-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.1), transparent);
+    transition: left 0.5s ease;
+}
+
+.strategy-card:hover {
+    border-color: #667eea;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+.strategy-card:hover::before {
+    left: 100%;
+}
+
+.strategy-card.selected {
+    border-color: #667eea;
+    background: linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.strategy-card i {
+    font-size: 1.5rem;
+    color: #667eea;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+/* --- Section Titles --- */
+.section-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.section-icon {
+    color: #667eea;
+}
+
+/* --- Forms & Inputs --- */
+.form-label {
+    font-weight: 500;
+    color: #495057;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+.form-control, .form-select {
+    font-size: 14px;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    transition: all 0.3s ease;
+}
+
+.form-control:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    transform: translateY(-2px);
+}
+
+.input-group-text {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px 0 0 8px;
+}
+
+.form-text {
+    font-size: 12px;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.invalid-feedback {
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
+
+/* --- Buttons --- */
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    font-weight: 500;
+    padding: 0.75rem 1.5rem;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-primary::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.btn-primary:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn-primary:active::before {
+    width: 300px;
+    height: 300px;
+}
+
+.btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.btn-light {
+    background-color: #f8f9fa;
+    border-color: #dee2e6;
+    color: #495057;
+}
+
+.btn-light:hover {
+    background-color: #e9ecef;
+    border-color: #dee2e6;
+    color: #495057;
+}
+
+/* --- Tabs --- */
+.nav-tabs {
+    border-bottom: 2px solid #e9ecef;
+}
+
+.nav-tabs .nav-link {
+    color: #6c757d;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    font-weight: 500;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.nav-tabs .nav-link::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 0;
+    height: 3px;
+    background: #667eea;
+    transform: translateX(-50%);
+    transition: width 0.3s ease;
+}
+
+.nav-tabs .nav-link:hover {
+    color: #667eea;
+    background-color: #f8f9fa;
+}
+
+.nav-tabs .nav-link:hover::after {
+    width: 100%;
+}
+
+.nav-tabs .nav-link.active {
+    color: #667eea;
+    background-color: transparent;
+    border-bottom: 3px solid #667eea;
+}
+
+.nav-tabs .nav-link.active::after {
+    width: 100%;
+}
+
+/* --- Graphs & Visualizations --- */
+.graph-container {
+    background: white;
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    margin-bottom: 1.5rem;
+    position: relative;
+    min-height: 400px; /* Ensure minimum height */
+    width: 100%; /* Full width */
+}
+
+/* Ensure Plotly graphs are fully visible */
+.graph-container .js-plotly-plot,
+.graph-container .plot-container,
+.graph-container .plotly {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 350px;
+}
+
+/* Fix for the main modebar groups */
+.graph-container .modebar {
+    position: absolute !important;
+    top: 10px;
+    right: 10px;
+}
+
+/* Ensure the SVG container is properly sized */
+.graph-container .main-svg {
+    overflow: visible !important;
+}
+
+/* Tab content container should have proper height */
+#tab-content-container {
+    min-height: 500px;
+    width: 100%;
+}
+
+/* Individual tab content */
+[id^="content-"] {
+    width: 100%;
+    min-height: 450px;
+}
+
+/* Ensure the graph output container has proper dimensions */
+#graph-output-container {
+    width: 100%;
+    overflow-x: auto; /* Allow horizontal scroll if needed */
+    overflow-y: visible;
+}
+
+/* Visualization Results card should expand to content */
+.card:has(#graph-output-container) {
+    overflow: visible;
+}
+
+.card-body:has(#graph-output-container) {
+    overflow: visible;
+    padding-bottom: 2rem; /* Extra padding at bottom */
+}
+
+/* --- Execution Summary --- */
+.execution-summary {
+    background: linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-top: 2rem;
+}
+
+.metric-card {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    transition: all 0.3s ease;
+}
+
+.metric-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.15);
+}
+
+.metric-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #667eea;
+}
+
+.metric-label {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+/* --- Alerts & Toasts --- */
+.alert {
+    border-radius: 8px;
+    border: none;
+}
+
+.alert-info {
+    background-color: #e7f3ff;
+    color: #0c5460;
+}
+
+.alert-light {
+    background-color: #f8f9fa;
+    color: #495057;
+}
+
+.toast {
+    min-width: 300px;
+    border-radius: 8px;
+    border: none;
+    animation: slideIn 0.3s ease-out;
+}
+
+.toast-header {
+    background-color: transparent;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* --- Badges --- */
+.badge {
+    padding: 0.35em 0.65em;
+    font-weight: 500;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+/* --- Progress Bars --- */
+.progress {
+    height: 10px;
+    border-radius: 5px;
+    background-color: #e9ecef;
+    overflow: visible;
+}
+
+.progress-bar {
+    border-radius: 5px;
+    position: relative;
+    animation: progressAnimation 1s ease-out;
+}
+
+@keyframes progressAnimation {
+    from { width: 0; }
+}
+
+/* --- Loading Animation --- */
+._dash-loading {
+    position: relative;
+}
+
+._dash-loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 40px;
+    height: 40px;
+    margin: -20px 0 0 -20px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* --- Tooltips --- */
+.tooltip {
+    font-size: 0.875rem;
+}
+
+.tooltip-inner {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 8px 12px;
+    border-radius: 6px;
+}
+
+/* --- Utilities --- */
+html {
+    scroll-behavior: smooth;
+}
+
+.collapse {
+    transition: height 0.35s ease;
+}
+
+/* --- Footer --- */
+footer {
+    background-color: #f8f9fa;
+    margin-top: 3rem;
+}
+
+/* --- Responsive Design --- */
+@media (max-width: 992px) {
+    .main-header {
+        padding: 1.5rem 0;
+    }
+    
+    .main-header h1 {
+        font-size: 1.75rem;
+    }
+    
+    .section-title {
+        font-size: 1rem;
+    }
+    
+    .metric-value {
+        font-size: 1.5rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .main-header h1 {
+        font-size: 1.5rem;
+    }
+    
+    .strategy-card {
+        margin-bottom: 0.75rem;
+    }
+    
+    .metric-card {
+        margin-bottom: 1rem;
+    }
+    
+    .nav-tabs .nav-link {
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+    }
+    
+    .card-body {
+        padding: 1rem;
+    }
+}
+
+/* --- Dark Mode Support --- */
+@media (prefers-color-scheme: dark) {
+    body {
+        background-color: #1a1a1a;
+        color: #e0e0e0;
+    }
+    
+    .card {
+        background-color: #2a2a2a;
+        color: #e0e0e0;
+    }
+    
+    .strategy-card {
+        background-color: #2a2a2a;
+        border-color: #3a3a3a;
+    }
+    
+    .form-control, .form-select {
+        background-color: #3a3a3a;
+        border-color: #4a4a4a;
+        color: #e0e0e0;
+    }
+    
+    .form-control:focus {
+        background-color: #3a3a3a;
+        border-color: #667eea;
+        color: #e0e0e0;
+    }
+    
+    .input-group-text {
+        background-color: #3a3a3a;
+        border-color: #4a4a4a;
+        color: #e0e0e0;
+    }
+    
+    .nav-tabs .nav-link {
+        color: #a0a0a0;
+    }
+    
+    .nav-tabs .nav-link:hover {
+        background-color: #2a2a2a;
+    }
+    
+    .alert-info {
+        background-color: #1e3a5f;
+        color: #a0c4ff;
+    }
+    
+    .alert-light {
+        background-color: #2a2a2a;
+        color: #e0e0e0;
+    }
+    
+    footer {
+        background-color: #2a2a2a;
+    }
+}
+
+/* --- Print Styles --- */
+@media print {
+    .main-header {
+        background: none !important;
+        color: #000 !important;
+    }
+    
+    .card {
+        box-shadow: none !important;
+        border: 1px solid #ddd !important;
+    }
+    
+    .btn, .toast-container {
+        display: none !important;
+    }
+    
+    .strategy-card {
+        border: 1px solid #ddd !important;
+    }
+}
+
+/* --- Layout Fixes for Graph Display --- */
+/* Ensure the visualization column takes proper space */
+.row > .col-lg-8 {
+    flex: 0 0 auto;
+    width: 66.66667%;
+    max-width: none; /* Remove max-width constraint */
+}
+
+/* Ensure cards don't clip content */
+.card {
+    overflow: visible !important;
+}
+
+.card-body {
+    overflow: visible !important;
+}
+
+/* Fix for tab container */
+.tab-content {
+    overflow: visible !important;
+}
+
+/* Ensure proper spacing for graph container */
+.graph-container {
+    margin: 0 -0.5rem; /* Negative margin to use full width */
+    padding: 1rem 1.5rem; /* Compensate with padding */
+}
+
+/* Override any Bootstrap constraints */
+.container-fluid {
+    max-width: none !important;
+}
+
+/* Responsive adjustments for larger screens */
+@media (min-width: 1200px) {
+    .row > .col-lg-8 {
+        width: 70%; /* Give more space to visualization on large screens */
+    }
+    
+    .row > .col-lg-4 {
+        width: 30%;
+    }
+}
+
+/* Fix plotly's own responsive behavior */
+.js-plotly-plot .plotly .main-svg {
+    overflow: visible !important;
+}
+
+.js-plotly-plot .plotly .modebar-container {
+    position: absolute;
+    top: 0;
+    right: 0;
+}
+
+/* Ensure the alert message doesn't interfere */
+#welcome-message {
+    margin-bottom: 0;
+}
+
+/* Final fixes for Plotly graph display */
+.dash-graph {
+    width: 100% !important;
+    height: auto !important;
+}
+
+.js-plotly-plot {
+    width: 100% !important;
+    height: auto !important;
+}
+
+.plotly-graph-div {
+    width: 100% !important;
+    overflow: visible !important;
+}
+
+/* Ensure the graph container div inside dcc.Graph has proper dimensions */
+._dash-graph-container {
+    width: 100% !important;
+    overflow: visible !important;
+}
+
+/* Fix for SVG container */
+.svg-container {
+    width: 100% !important;
+    height: auto !important;
+}
+
+/* Ensure modebar doesn't interfere with layout */
+.modebar-container {
+    position: absolute !important;
+    z-index: 1000;
+}
+
+/* Override any inline styles that might be constraining the graph */
+div[style*="height: 400px"] {
+    height: auto !important;
+    min-height: 400px !important;
+}
+
+/* Ensure responsive behavior on window resize */
+@media screen and (max-width: 1400px) {
+    .row > .col-lg-8 {
+        width: 100%;
+        margin-bottom: 2rem;
+    }
+    
+    .row > .col-lg-4 {
+        width: 100%;
+    }
 } 

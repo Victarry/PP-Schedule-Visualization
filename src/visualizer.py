@@ -454,15 +454,14 @@ def create_pipeline_figure(
         legend=dict(
             orientation="v",  # Changed from horizontal to vertical
             yanchor="top",
-            y=1.02,  # Position at the top
-            xanchor="right",
-            x=1.20,  # Position further to the right to accommodate more items
-            title=dict(text="<b>Operation Types:</b>"),
+            y=0.98,  # Position near the top
+            xanchor="left",
+            x=1.02,  # Position just outside the plot area
+            title=dict(text="<b>Operation Types:</b>", font=dict(size=12)),
             itemsizing="constant",
             tracegroupgap=0,
+            font=dict(size=10),  # Smaller font for legend items
         ),
-        width=2000,  # Increase width to accommodate the expanded legend
-        height=400,  # Maintain current height
         bargap=0,
         bargroupgap=0,
     )

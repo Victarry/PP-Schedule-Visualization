@@ -23,7 +23,49 @@ STRATEGIES = {
     "dualpipe": generate_dualpipe_schedule,
 }
 
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.BOOTSTRAP], suppress_callback_exceptions=True)
+# Strategy descriptions for better UX
+STRATEGY_INFO = {
+    "1f1b": {
+        "name": "1F1B",
+        "description": "One Forward One Backward - Standard pipeline parallelism",
+        "icon": "bi-arrow-left-right"
+    },
+    "zb1p": {
+        "name": "ZB-1P",
+        "description": "Zero Bubble 1-stage Pipeline - Minimizes pipeline bubbles",
+        "icon": "bi-circle"
+    },
+    "1f1b_overlap": {
+        "name": "1F1B Overlap",
+        "description": "1F1B with overlapped forward and backward passes",
+        "icon": "bi-layers"
+    },
+    "1f1b_interleave": {
+        "name": "1F1B Interleave",
+        "description": "Interleaved pipeline stages for better efficiency",
+        "icon": "bi-shuffle"
+    },
+    "1f1b_interleave_overlap": {
+        "name": "1F1B Interleave + Overlap",
+        "description": "Combines interleaving with overlapped execution",
+        "icon": "bi-layers-fill"
+    },
+    "dualpipe": {
+        "name": "DualPipe",
+        "description": "Dual pipeline execution for enhanced parallelism",
+        "icon": "bi-diagram-2"
+    }
+}
+
+app = dash.Dash(
+    __name__, 
+    external_stylesheets=[
+        dbc.themes.BOOTSTRAP, 
+        dbc.icons.BOOTSTRAP,
+        "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+    ], 
+    suppress_callback_exceptions=True
+)
 app.title = "Pipeline Parallelism Schedule Visualizer"
 
 # Initial default values
@@ -42,214 +84,345 @@ default_values = {
 }
 
 # Define input groups using dbc components
-card_style = {"marginBottom": "24px"}
+card_style = {"marginBottom": "20px"}
 
-basic_params_card = dbc.Card(
-    dbc.CardBody([
-        html.H5("Basic Parameters", className="card-title mb-4"),
-        html.Div([
-            dbc.Label("Number of Devices (GPUs)", html_for='num_devices', className="form-label"),
-            dbc.Input(id='num_devices', type='number', value=default_values["num_devices"], min=1, step=1, required=True),
-            dbc.FormFeedback("Please provide a positive integer for the number of devices.", type="invalid", id="feedback-num_devices"),
-        ], className="mb-3"),
-        html.Div([
-            dbc.Label("Number of Stages (Model Chunks)", html_for='num_stages', className="form-label"),
-            dbc.Input(id='num_stages', type='number', value=default_values["num_stages"], min=1, step=1, required=True),
-            dbc.FormFeedback("Please provide a positive integer for the number of stages.", type="invalid", id="feedback-num_stages"),
-        ], className="mb-3"),
-        html.Div([
-            dbc.Label("Number of Microbatches", html_for='num_batches', className="form-label"),
-            dbc.Input(id='num_batches', type='number', value=default_values["num_batches"], min=1, step=1, required=True),
-            dbc.FormFeedback("Please provide a positive integer for the number of microbatches.", type="invalid", id="feedback-num_batches"),
-        ], className="mb-3"),
-    ]),
-    style=card_style
-)
+# Header section
+header = html.Div([
+    html.Div([
+        html.H1([
+            html.I(className="bi bi-diagram-3 me-3"),
+            "Pipeline Parallelism Schedule Visualizer"
+        ], className="text-center mb-0"),
+        html.P("Visualize and compare different pipeline parallelism scheduling strategies", 
+               className="text-center mt-2 mb-0 lead")
+    ], className="container")
+], className="main-header")
 
-scheduling_params_card = dbc.Card(
+# Basic parameters card with improved styling
+basic_params_card = dbc.Card([
     dbc.CardBody([
-        html.H5("Scheduling Strategy", className="card-title mb-4"),
-        dbc.ButtonGroup(
-            [
-                dbc.Button(
-                    strategy,
-                    id={"type": "strategy-button", "index": strategy},
-                    color="secondary",
-                    outline=True,
-                    active=strategy in default_values["strategy"],
-                    className="me-1"
-                 )
-                for strategy in STRATEGIES.keys()
-            ],
-            className="d-flex flex-wrap"
-        ),
+        html.H5([
+            html.I(className="bi bi-sliders section-icon"),
+            "Basic Configuration"
+        ], className="section-title"),
+        
+        dbc.Row([
+            dbc.Col([
+                dbc.Label("Number of Devices (GPUs)", html_for='num_devices', className="form-label"),
+                dbc.InputGroup([
+                    dbc.InputGroupText(html.I(className="bi bi-gpu-card")),
+                    dbc.Input(id='num_devices', type='number', value=default_values["num_devices"], 
+                             min=1, step=1, required=True),
+                ]),
+                dbc.FormFeedback("Please provide a positive integer.", type="invalid"),
+            ], md=6),
+            
+            dbc.Col([
+                dbc.Label("Number of Stages", html_for='num_stages', className="form-label"),
+                dbc.InputGroup([
+                    dbc.InputGroupText(html.I(className="bi bi-stack")),
+                    dbc.Input(id='num_stages', type='number', value=default_values["num_stages"], 
+                             min=1, step=1, required=True),
+                ]),
+                dbc.FormFeedback("Please provide a positive integer.", type="invalid"),
+            ], md=6),
+        ], className="mb-3"),
+        
+        dbc.Row([
+            dbc.Col([
+                dbc.Label("Number of Microbatches", html_for='num_batches', className="form-label"),
+                dbc.InputGroup([
+                    dbc.InputGroupText(html.I(className="bi bi-collection")),
+                    dbc.Input(id='num_batches', type='number', value=default_values["num_batches"], 
+                             min=1, step=1, required=True),
+                ]),
+                dbc.FormFeedback("Please provide a positive integer.", type="invalid"),
+            ], md=12),
+        ]),
+    ])
+], style=card_style)
+
+# Improved scheduling strategy selection
+scheduling_params_card = dbc.Card([
+    dbc.CardBody([
+        html.H5([
+            html.I(className="bi bi-diagram-2 section-icon"),
+            "Scheduling Strategy"
+        ], className="section-title"),
+        
+        html.P("Select one or more strategies to compare:", className="text-muted mb-3"),
+        
+        dbc.Row([
+            dbc.Col([
+                html.Div([
+                    html.Div([
+                        html.I(className=f"{STRATEGY_INFO[strategy]['icon']} mb-2"),
+                        html.H6(STRATEGY_INFO[strategy]['name'], className="mb-1"),
+                        html.Small(STRATEGY_INFO[strategy]['description'], className="text-muted")
+                    ], 
+                    id={"type": "strategy-card", "index": strategy},
+                    className=f"strategy-card p-3 text-center {'selected' if strategy in default_values['strategy'] else ''}",
+                    )
+                ], className="mb-3")
+            ], lg=4, md=6) for strategy in STRATEGIES.keys()
+        ], className="g-3"),
+        
         dcc.Store(id='selected-strategies-store', data=default_values["strategy"]),
         html.Div(id='strategy-selection-feedback', className='invalid-feedback d-block mt-2')
-    ]),
-    style=card_style
-)
+    ])
+], style=card_style)
 
-timing_params_card = dbc.Card(
+# Timing parameters with better organization
+timing_params_card = dbc.Card([
     dbc.CardBody([
-        html.H5("Operation Timing (ms)", className="card-title mb-4"),
-        html.Div([
-            html.Div([
-                dbc.Label("P2P Latency", html_for='p2p_latency', className="form-label d-inline-block me-1"),
-                html.I(className="bi bi-info-circle", id="tooltip-target-p2p", style={"cursor": "pointer"})
-            ]),
-            dbc.Input(id='p2p_latency', type='number', value=default_values["p2p_latency"], min=0, step=0.01, required=True),
-            dbc.FormFeedback("P2P latency must be a number >= 0.", type="invalid", id="feedback-p2p_latency"),
-            dbc.Tooltip(
-                "Time (ms) for point-to-point communication between adjacent devices.",
-                target="tooltip-target-p2p",
-                placement="right"
-            )
+        html.H5([
+            html.I(className="bi bi-clock section-icon"),
+            "Operation Timing Configuration"
+        ], className="section-title"),
+        
+        # Basic timing parameters
+        dbc.Row([
+            dbc.Col([
+                html.Div([
+                    dbc.Label([
+                        "P2P Latency (ms)",
+                        dbc.Badge("?", pill=True, color="secondary", className="ms-1", id="tooltip-p2p",
+                                 style={"cursor": "pointer", "fontSize": "0.75rem"})
+                    ], html_for='p2p_latency', className="form-label"),
+                    dbc.Input(id='p2p_latency', type='number', value=default_values["p2p_latency"], 
+                             min=0, step=0.01, required=True),
+                    dbc.FormFeedback("Must be ≥ 0", type="invalid"),
+                    dbc.Tooltip(
+                        "Time for point-to-point communication between adjacent devices.",
+                        target="tooltip-p2p",
+                        placement="right"
+                    )
+                ])
+            ], md=6),
+            
+            dbc.Col([
+                html.Div([
+                    dbc.Label([
+                        "Forward Pass Time (ms)",
+                        dbc.Badge("?", pill=True, color="secondary", className="ms-1", id="tooltip-fwd",
+                                 style={"cursor": "pointer", "fontSize": "0.75rem"})
+                    ], html_for='op_time_forward', className="form-label"),
+                    dbc.Input(id='op_time_forward', type='number', value=default_values["op_time_forward"], 
+                             min=0.01, step=0.01, required=True),
+                    dbc.FormFeedback("Must be > 0", type="invalid"),
+                    dbc.Tooltip(
+                        "Time for a forward pass of one microbatch through one stage.",
+                        target="tooltip-fwd",
+                        placement="right"
+                    )
+                ])
+            ], md=6),
         ], className="mb-3"),
+        
+        # Backward timing
         html.Div([
-            html.Div([
-                dbc.Label("Forward Operation Time", html_for='op_time_forward', className="form-label d-inline-block me-1"),
-                html.I(className="bi bi-info-circle", id="tooltip-target-fwd", style={"cursor": "pointer"})
-            ]),
-            dbc.Input(id='op_time_forward', type='number', value=default_values["op_time_forward"], min=0.01, step=0.01, required=True),
-            dbc.FormFeedback("Forward time must be a number > 0.", type="invalid", id="feedback-op_time_forward"),
+            dbc.Label([
+                "Backward Pass Time (ms)",
+                dbc.Badge("?", pill=True, color="secondary", className="ms-1", id="tooltip-bwd",
+                         style={"cursor": "pointer", "fontSize": "0.75rem"})
+            ], html_for='op_time_backward', className="form-label"),
+            dbc.Input(id='op_time_backward', type='number', value=default_values["op_time_backward"], 
+                     min=0.01, step=0.01),
+            dbc.FormText("Combined backward pass time (data + weight gradients)", className="mt-1"),
+            dbc.FormFeedback("Must be > 0", type="invalid"),
             dbc.Tooltip(
-                "Time (ms) for a single forward pass of one microbatch through one stage.",
-                target="tooltip-target-fwd",
-                placement="right"
-            )
-        ], className="mb-3"),
-        html.Div([
-            html.Div([
-                dbc.Label("Backward (Combined)", html_for='op_time_backward', className="form-label d-inline-block me-1"),
-                html.I(className="bi bi-info-circle", id="tooltip-target-bwd", style={"cursor": "pointer"})
-            ]),
-            dbc.Input(id='op_time_backward', type='number', value=default_values["op_time_backward"], min=0.01, step=0.01),
-            dbc.FormText("Used when strategy does NOT require split backward."),
-            dbc.FormFeedback("Backward time must be > 0 if specified.", type="invalid", id="feedback-op_time_backward"),
-            dbc.Tooltip(
-                "Time (ms) for a combined backward pass (data gradient + weight gradient) of one microbatch through one stage.",
-                target="tooltip-target-bwd",
+                "Time for combined backward pass (data + weight gradients).",
+                target="tooltip-bwd",
                 placement="right"
             )
         ], className="mb-3"),
 
-        # --- Collapsible Advanced Options (Item 3) ---
-        html.Hr(className="my-3"),
-        dbc.Switch(
-            id="advanced-timing-switch",
-            label="Show Advanced Timing Options",
-            value=False,
-            className="mb-3"
+        # Advanced options with better styling
+        html.Hr(className="my-4"),
+        dbc.Button([
+            html.I(className="bi bi-gear-fill me-2"),
+            "Advanced Timing Options"
+        ], 
+        id="advanced-timing-toggle",
+        color="light",
+        className="mb-3",
+        size="sm"
         ),
-        dbc.Collapse(
-            id="advanced-timing-collapse",
-            is_open=False,
-            children=[
-                html.Div([
-                    html.Div([
-                        dbc.Label("Backward D (Data Grad)", html_for='op_time_backward_d', className="form-label d-inline-block me-1"),
-                        html.I(className="bi bi-info-circle", id="tooltip-target-bwd-d", style={"cursor": "pointer"})
-                    ]),
-                    dbc.Input(id='op_time_backward_d', type='number', value=default_values["op_time_backward_d"], min=0.01, step=0.01),
-                    dbc.FormText("Used when strategy requires split backward (e.g., ZB-1P, DualPipe)."),
-                    dbc.FormFeedback("Backward D time must be > 0 if specified.", type="invalid", id="feedback-op_time_backward_d"),
-                    dbc.Tooltip(
-                        "Time (ms) for the data gradient part of the backward pass.",
-                        target="tooltip-target-bwd-d",
-                        placement="right"
-                    )
-                ], className="mb-3"),
-                html.Div([
-                    html.Div([
-                        dbc.Label("Backward W (Weight Grad)", html_for='op_time_backward_w', className="form-label d-inline-block me-1"),
-                        html.I(className="bi bi-info-circle", id="tooltip-target-bwd-w", style={"cursor": "pointer"})
-                    ]),
-                    dbc.Input(id='op_time_backward_w', type='number', value=default_values["op_time_backward_w"], min=0.01, step=0.01),
-                    dbc.FormText("Used when strategy requires split backward (e.g., ZB-1P, DualPipe)."),
-                    dbc.FormFeedback("Backward W time must be > 0 if specified.", type="invalid", id="feedback-op_time_backward_w"),
-                    dbc.Tooltip(
-                        "Time (ms) for the weight gradient part of the backward pass.",
-                        target="tooltip-target-bwd-w",
-                        placement="right"
-                    )
-                ], className="mb-3"),
-                html.Div([
-                    html.Div([
-                        dbc.Label("Overlapped Forward+Backward", html_for='op_time_overlapped_fwd_bwd', className="form-label d-inline-block me-1"),
-                        html.I(className="bi bi-info-circle", id="tooltip-target-overlap", style={"cursor": "pointer"})
-                    ]),
-                    dbc.Input(id='op_time_overlapped_fwd_bwd', type='number', placeholder="Defaults to Fwd + Bwd", min=0.01, step=0.01, value=default_values["op_time_overlapped_fwd_bwd"]),
-                    dbc.FormText("Specify if Forward and Backward ops overlap completely."),
-                    dbc.FormFeedback("Overlapped time must be > 0 if specified.", type="invalid", id="feedback-op_time_overlapped_fwd_bwd"),
-                    dbc.Tooltip(
-                        "Optional: Specify a single time (ms) if the forward and backward passes for a microbatch can be fully overlapped within the same stage execution slot.",
-                        target="tooltip-target-overlap",
-                        placement="right"
-                    )
-                ], className="mb-3"),
-                html.Div([
-                    html.Div([
-                        dbc.Label("Microbatch Group Size per VP Stage", html_for='microbatch_group_size_per_vp_stage', className="form-label d-inline-block me-1"),
-                        html.I(className="bi bi-info-circle", id="tooltip-target-microbatch-group", style={"cursor": "pointer"})
-                    ]),
-                    dbc.Input(id='microbatch_group_size_per_vp_stage', type='number', placeholder=f"Defaults to num_devices", min=1, step=1, value=default_values["microbatch_group_size_per_vp_stage"]),
-                    dbc.FormText("Used for interleave strategies (1f1b_interleave, 1f1b_interleave_overlap)."),
-                    dbc.FormFeedback("Microbatch group size must be a positive integer if specified.", type="invalid", id="feedback-microbatch_group_size_per_vp_stage"),
-                    dbc.Tooltip(
-                        "Number of microbatches to process per virtual pipeline stage before switching to the next stage. Used primarily with interleave scheduling strategies. Defaults to the number of devices.",
-                        target="tooltip-target-microbatch-group",
-                        placement="right"
-                    )
-                ], className="mb-3"),
-            ]
-        )
-    ]),
-    style=card_style
-)
-
-# Updated app layout using dbc components and structure
-app.layout = dbc.Container([
-    html.H1("Pipeline Parallelism Schedule Visualizer", className="my-4 text-center"),
-
-    # Main Row with Left (Graphs) and Right (Controls) Columns
-    dbc.Row([
-        # --- Left Column (Graphs Area) ---
-        dbc.Col([
-            # Output Area for Graphs
-            dcc.Loading(
-                id="loading-graph-area",
-                type="circle",
-                children=html.Div(id='graph-output-container', style={"minHeight": "600px"})
-            )
-        ], lg=10, md=9, sm=12, className="mb-4 mb-lg-0"),
-
-        # --- Right Column (Controls Area) ---
-        dbc.Col([
-            # Parameter Cards Stacked Vertically
-            basic_params_card,
-            scheduling_params_card,
-            timing_params_card,
-
-            # Generate Button below the cards in the right column
+        
+        dbc.Collapse([
+            dbc.Alert([
+                html.I(className="bi bi-info-circle-fill me-2"),
+                "These options are for advanced users and specific scheduling strategies."
+            ], color="info", className="mb-3"),
+            
             dbc.Row([
-                dbc.Col(
-                    dbc.Button(
-                        'Generate Schedule',
-                        id='generate-button',
-                        n_clicks=0,
-                        color="primary",
-                        className="w-100",
-                        disabled=False
-                    ),
+                dbc.Col([
+                    dbc.Label("Backward D (Data Gradient)", html_for='op_time_backward_d'),
+                    dbc.Input(id='op_time_backward_d', type='number', 
+                             value=default_values["op_time_backward_d"], min=0.01, step=0.01),
+                    dbc.FormText("For strategies with split backward"),
+                    dbc.FormFeedback("Must be > 0", type="invalid"),
+                ], md=6),
+                
+                dbc.Col([
+                    dbc.Label("Backward W (Weight Gradient)", html_for='op_time_backward_w'),
+                    dbc.Input(id='op_time_backward_w', type='number', 
+                             value=default_values["op_time_backward_w"], min=0.01, step=0.01),
+                    dbc.FormText("For strategies with split backward"),
+                    dbc.FormFeedback("Must be > 0", type="invalid"),
+                ], md=6),
+            ], className="mb-3"),
+            
+            html.Div([
+                dbc.Label("Overlapped Forward+Backward Time", html_for='op_time_overlapped_fwd_bwd'),
+                dbc.Input(id='op_time_overlapped_fwd_bwd', type='number', 
+                         placeholder="Auto-calculated if not specified", min=0.01, step=0.01),
+                dbc.FormText("Time when forward and backward can be fully overlapped"),
+                dbc.FormFeedback("Must be > 0", type="invalid"),
+            ], className="mb-3"),
+            
+            html.Div([
+                dbc.Label("Microbatch Group Size per VP Stage", html_for='microbatch_group_size_per_vp_stage'),
+                dbc.Input(id='microbatch_group_size_per_vp_stage', type='number', 
+                         placeholder=f"Defaults to number of devices", min=1, step=1),
+                dbc.FormText("For interleave strategies only"),
+                dbc.FormFeedback("Must be a positive integer", type="invalid"),
+            ]),
+        ], id="advanced-timing-collapse", is_open=False)
+    ])
+], style=card_style)
+
+# Updated app layout with improved structure
+app.layout = html.Div([
+    header,
+    
+    dbc.Container([
+        dbc.Row([
+            # Left Column - Visualization Area
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardBody([
+                        html.H5([
+                            html.I(className="bi bi-graph-up section-icon"),
+                            "Visualization Results"
+                        ], className="section-title"),
+                        
+                        dcc.Loading(
+                            id="loading-graph-area",
+                            type="circle",
+                            children=html.Div([
+                                # Welcome message for initial state
+                                dbc.Alert([
+                                    html.H4([
+                                        html.I(className="bi bi-lightbulb me-2"),
+                                        "Welcome to Pipeline Parallelism Schedule Visualizer"
+                                    ], className="alert-heading"),
+                                    html.Hr(),
+                                    html.P([
+                                        "This tool helps you visualize and compare different pipeline parallelism scheduling strategies. ",
+                                        "To get started:"
+                                    ], className="mb-3"),
+                                    html.Ol([
+                                        html.Li("Configure your basic parameters (devices, stages, microbatches)"),
+                                        html.Li("Select one or more scheduling strategies to compare"),
+                                        html.Li("Set the operation timing parameters"),
+                                        html.Li("Click 'Generate Schedules' to visualize the results")
+                                    ], className="mb-3"),
+                                    html.P([
+                                        html.Strong("Tip: "),
+                                        "Hover over the ",
+                                        html.I(className="bi bi-question-circle"),
+                                        " icons for detailed explanations of each parameter."
+                                    ], className="mb-0")
+                                ], color="info", className="text-start", id="welcome-message"),
+                            ], id='graph-output-container', style={"minHeight": "400px"})
+                        )
+                    ])
+                ])
+            ], lg=8, md=7, className="mb-4"),
+            
+            # Right Column - Controls
+            dbc.Col([
+                basic_params_card,
+                scheduling_params_card,
+                timing_params_card,
+                
+                # Generate button with better styling
+                dbc.Button([
+                    html.I(className="bi bi-play-fill me-2"),
+                    "Generate Schedules"
+                ], 
+                id='generate-button',
+                color="primary",
+                size="lg",
+                className="w-100 mt-3",
+                disabled=False
                 )
-            ], className="mt-3")
-        ], lg=2, md=3, sm=12)
-    ]),
+            ], lg=4, md=5)
+        ])
+    ], fluid=True),
+    
+    # Toast container
+    html.Div(id="toast-container", style={
+        "position": "fixed", 
+        "top": 20, 
+        "right": 20, 
+        "zIndex": 1050,
+        "maxWidth": "400px"
+    }),
+    
+    # Footer
+    html.Footer([
+        dbc.Container([
+            html.Hr(className="mt-5"),
+            dbc.Row([
+                dbc.Col([
+                    html.H6("About Pipeline Parallelism", className="text-muted mb-3"),
+                    html.P([
+                        "Pipeline parallelism is a distributed training technique that splits a model across multiple devices. ",
+                        "This visualizer helps you understand different scheduling strategies and their performance characteristics."
+                    ], className="small text-muted")
+                ], md=4),
+                dbc.Col([
+                    html.H6("Scheduling Strategies", className="text-muted mb-3"),
+                    html.Ul([
+                        html.Li("1F1B: Standard pipeline with one forward, one backward", className="small text-muted"),
+                        html.Li("ZB-1P: Zero bubble optimization", className="small text-muted"),
+                        html.Li("Interleave: Virtual pipeline stages", className="small text-muted"),
+                        html.Li("Overlap: Concurrent forward/backward", className="small text-muted")
+                    ], className="list-unstyled")
+                ], md=4),
+                dbc.Col([
+                    html.H6("Resources", className="text-muted mb-3"),
+                    html.Div([
+                        html.A([
+                            html.I(className="bi bi-github me-2"),
+                            "View on GitHub"
+                        ], href="#", className="small text-muted d-block mb-2"),
+                        html.A([
+                            html.I(className="bi bi-book me-2"),
+                            "Documentation"
+                        ], href="#", className="small text-muted d-block mb-2"),
+                        html.A([
+                            html.I(className="bi bi-question-circle me-2"),
+                            "Report an Issue"
+                        ], href="#", className="small text-muted d-block")
+                    ])
+                ], md=4)
+            ]),
+            html.Hr(),
+            html.P([
+                "© 2024 Pipeline Parallelism Schedule Visualizer. ",
+                "Built with ",
+                html.I(className="bi bi-heart-fill text-danger"),
+                " using Dash and Plotly."
+            ], className="text-center text-muted small mb-3")
+        ], fluid=True)
+    ], className="mt-5 bg-light py-4")
+])
 
-    # --- Toast Container (Positioned Fixed) ---
-    html.Div(id="toast-container", style={"position": "fixed", "top": 20, "right": 20, "zIndex": 1050})
-
-], fluid=True, className="py-4")
+# Keep the existing store for backward compatibility
+app.layout.children.append(dcc.Store(id='advanced-timing-switch', data=False))
 
 # --- Callback for Input Validation and Generate Button State ---
 @app.callback(
@@ -343,24 +516,49 @@ def validate_inputs(num_devices, num_stages, num_batches, p2p_latency,
 # --- Callback to toggle Advanced Options Collapse ---
 @app.callback(
     Output("advanced-timing-collapse", "is_open"),
-    Input("advanced-timing-switch", "value"),
+    Input("advanced-timing-toggle", "n_clicks"),
+    State("advanced-timing-collapse", "is_open"),
     prevent_initial_call=True,
 )
-def toggle_advanced_options(switch_value):
-    return switch_value
+def toggle_advanced_options(n_clicks, is_open):
+    if n_clicks:
+        return not is_open
+    return is_open
 
-# --- Client-side Callback for Strategy ButtonGroup ---
+# --- Client-side Callback for Strategy Card Selection ---
 app.clientside_callback(
-    ClientsideFunction(
-        namespace='clientside',
-        function_name='update_strategy_selection'
-    ),
+    """
+    function(n_clicks_list, current_strategies) {
+        const ctx = dash_clientside.callback_context;
+        if (!ctx.triggered || ctx.triggered.length === 0) {
+            return [dash_clientside.no_update, dash_clientside.no_update];
+        }
+        
+        const triggered = ctx.triggered[0];
+        const clickedIndex = JSON.parse(triggered.prop_id.split('.')[0]).index;
+        
+        let newStrategies = current_strategies ? [...current_strategies] : [];
+        
+        if (newStrategies.includes(clickedIndex)) {
+            newStrategies = newStrategies.filter(s => s !== clickedIndex);
+        } else {
+            newStrategies.push(clickedIndex);
+        }
+        
+        // Update card classes
+        const allStrategies = ['1f1b', 'zb1p', '1f1b_overlap', '1f1b_interleave', '1f1b_interleave_overlap', 'dualpipe'];
+        const cardClasses = allStrategies.map(strategy => 
+            newStrategies.includes(strategy) 
+                ? 'strategy-card p-3 text-center selected' 
+                : 'strategy-card p-3 text-center'
+        );
+        
+        return [newStrategies, cardClasses];
+    }
+    """,
     Output('selected-strategies-store', 'data'),
-    Output({'type': 'strategy-button', 'index': ALL}, 'active'),
-    Output({'type': 'strategy-button', 'index': ALL}, 'color'),
-    Output({'type': 'strategy-button', 'index': ALL}, 'outline'),
-    Output('strategy-selection-feedback', 'children'),
-    Input({'type': 'strategy-button', 'index': ALL}, 'n_clicks'),
+    Output({'type': 'strategy-card', 'index': ALL}, 'className'),
+    Input({'type': 'strategy-card', 'index': ALL}, 'n_clicks'),
     State('selected-strategies-store', 'data'),
     prevent_initial_call=True
 )
@@ -549,74 +747,201 @@ def update_graph(n_clicks, num_devices, num_stages, num_batches, p2p_latency,
             )
         )
     
-    # --- Generate Graphs ---
+    # --- Generate Graphs with improved layout ---
     if valid_results:
         max_execution_time = max(schedule.get_total_execution_time() for _, schedule, _ in valid_results)
         sorted_valid_results = sorted(valid_results, key=lambda x: strategy_display_order.index(x[0]) if x[0] in strategy_display_order else float('inf'))
 
-        # Prepare graphs for single-column layout
-        graph_components = [] # Use graph_components again
-        for strategy, _, vis_data in sorted_valid_results:
+        # Create tabs for multiple strategies
+        tabs = []
+        tab_panels = []
+        
+        for idx, (strategy, _, vis_data) in enumerate(sorted_valid_results):
+            strategy_info = STRATEGY_INFO[strategy]
+            
+            # Create figure
             fig = create_pipeline_figure(vis_data, max_time=max_execution_time, show_progress=False)
             margin = max_execution_time * 0.05
             fig.update_layout(
-                xaxis=dict(range=[0, max_execution_time + margin])
+                xaxis=dict(range=[0, max_execution_time + margin]),
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(family="Inter, sans-serif"),
+                height=400,  # Set explicit height
+                autosize=True,  # Enable autosize
+                margin=dict(l=60, r=20, t=40, b=60),  # Set proper margins
             )
-            # Append the Div directly for vertical stacking
-            graph_components.append(
+            
+            # Create tab
+            tab_label = strategy_info['name']
+            tab_value = f"tab-{strategy}"
+            
+            tabs.append(
+                dbc.Tab(
+                    label=tab_label,
+                    tab_id=tab_value,
+                    activeTabClassName="fw-bold"
+                )
+            )
+            
+            # Create tab panel content
+            tab_panels.append(
                 html.Div([
-                    html.H4(f"Schedule: {strategy}", className="text-center mt-3 mb-2"),
-                    dcc.Graph(figure=fig)
-                ])
+                    dbc.Alert([
+                        html.I(className=f"{strategy_info['icon']} me-2"),
+                        strategy_info['description']
+                    ], color="light", className="mb-3"),
+                    html.Div([
+                        dcc.Graph(
+                            figure=fig, 
+                            config={
+                                'displayModeBar': False,
+                                'responsive': True  # Make graph responsive
+                            },
+                            className="dash-graph"
+                        )
+                    ], className="graph-container")
+                ], 
+                id=f"content-{strategy}",
+                style={"display": "block" if idx == 0 else "none"}  # Show first tab by default
+                )
             )
-
-        # No grid arrangement needed for single column
-        # rows = [] ... removed ...
+        
+        # Create tabbed interface with callback to switch content
+        graph_components = [
+            dbc.Tabs(
+                tabs,
+                id="strategy-tabs",
+                active_tab=f"tab-{sorted_valid_results[0][0]}",
+                className="mb-3"
+            ),
+            html.Div(tab_panels, id="tab-content-container")
+        ]
 
     # If there are graphs, use the component list, otherwise show a message
     output_content = []
-    if graph_components: # Check if graph_components list is populated
-        output_content = graph_components # Assign the list of components
-    elif not toast_components: # Only show 'no results' if no errors/adjustments either
-        output_content = dbc.Alert("Click 'Generate Schedule' to see results.", color="info", className="mt-3")
+    if graph_components:
+        output_content = graph_components
+    elif not toast_components:
+        output_content = dbc.Alert([
+            html.I(className="bi bi-info-circle-fill me-2"),
+            "Click 'Generate Schedules' to visualize pipeline parallelism strategies."
+        ], color="info", className="text-center")
 
-    # Add the execution time table if there are results
+    # Add execution time summary with improved design
     if execution_times:
-        # Sort times based on execution time (ascending)
         sorted_times = sorted(execution_times, key=lambda x: x[1])
         min_time = sorted_times[0][1] if sorted_times else None
-
-        table_header = [html.Thead(html.Tr([html.Th("Strategy"), html.Th("Total Execution Time (ms)")]))]
+        
+        # Create metric cards for top strategies
+        metric_cards = []
+        for i, (strategy, time) in enumerate(sorted_times[:3]):  # Show top 3
+            strategy_info = STRATEGY_INFO[strategy]
+            badge_color = "success" if i == 0 else "primary" if i == 1 else "secondary"
+            
+            metric_cards.append(
+                dbc.Col([
+                    html.Div([
+                        html.Div([
+                            html.I(className=f"{strategy_info['icon']} mb-2", 
+                                  style={"fontSize": "2rem", "color": "#667eea"}),
+                            html.H3(f"{time:.2f} ms", className="metric-value"),
+                            html.P(strategy_info['name'], className="metric-label mb-0"),
+                            dbc.Badge(f"#{i+1}", color=badge_color, className="mt-2")
+                        ], className="metric-card")
+                    ])
+                ], lg=4, md=6, className="mb-3")
+            )
+        
+        # Create detailed comparison table
         table_rows = []
         for strategy, time in sorted_times:
-            row_class = "table-success" if time == min_time else ""
-            table_rows.append(html.Tr([html.Td(strategy), html.Td(f"{time:.2f}")], className=row_class))
-
-        table_body = [html.Tbody(table_rows)]
-        summary_table = dbc.Table(
-            table_header + table_body,
-            bordered=True,
-            striped=True,
-            hover=True,
-            responsive=True,
-            color="light", # Apply a light theme color
-            className="mt-5" # Add margin top
-        )
-        # Prepend title to the table
-        table_component = html.Div([
-            html.H4("Execution Time Summary", className="text-center mt-4 mb-3"),
-            summary_table
-        ])
-
-        # Append the table component to the output content
-        # If output_content is just the alert, replace it. Otherwise, append.
+            strategy_info = STRATEGY_INFO[strategy]
+            efficiency = (min_time / time * 100) if min_time else 100
+            
+            table_rows.append(
+                html.Tr([
+                    html.Td([
+                        html.I(className=f"{strategy_info['icon']} me-2"),
+                        strategy_info['name']
+                    ]),
+                    html.Td(f"{time:.2f} ms"),
+                    html.Td([
+                        dbc.Progress(
+                            value=efficiency,
+                            color="success" if efficiency >= 95 else "warning" if efficiency >= 80 else "danger",
+                            className="mb-0",
+                            style={"height": "10px"}
+                        ),
+                        html.Small(f"{efficiency:.1f}%", className="ms-2 text-muted")
+                    ])
+                ], className="align-middle")
+            )
+        
+        execution_summary = html.Div([
+            html.H4([
+                html.I(className="bi bi-speedometer2 section-icon"),
+                "Performance Summary"
+            ], className="section-title mt-5"),
+            
+            # Metric cards
+            dbc.Row(metric_cards, className="mb-4"),
+            
+            # Detailed table
+            dbc.Card([
+                dbc.CardBody([
+                    html.H5("Detailed Comparison", className="mb-3"),
+                    dbc.Table([
+                        html.Thead([
+                            html.Tr([
+                                html.Th("Strategy"),
+                                html.Th("Execution Time"),
+                                html.Th("Relative Efficiency", style={"width": "40%"})
+                            ])
+                        ]),
+                        html.Tbody(table_rows)
+                    ], hover=True, responsive=True, className="mb-0")
+                ])
+            ])
+        ], className="execution-summary")
+        
+        # Append the execution summary
         if isinstance(output_content, list):
-            output_content.append(table_component)
-        else: # It must be the Alert
-            output_content = [output_content, table_component] # Replace Alert with list
+            output_content.append(execution_summary)
+        else:
+            output_content = [output_content, execution_summary]
 
-    # Return graph components (single column list or message) and toast components
+    # Return graph components and toast components
     return output_content, toast_components
+
+# --- Client-side Callback for Tab Switching ---
+app.clientside_callback(
+    """
+    function(activeTab) {
+        if (!activeTab) return window.dash_clientside.no_update;
+        
+        // Extract strategy from tab id (format: "tab-strategy")
+        const activeStrategy = activeTab.replace("tab-", "");
+        
+        // Get all tab content divs
+        const contentDivs = document.querySelectorAll('[id^="content-"]');
+        
+        contentDivs.forEach(div => {
+            const strategy = div.id.replace("content-", "");
+            if (strategy === activeStrategy) {
+                div.style.display = "block";
+            } else {
+                div.style.display = "none";
+            }
+        });
+        
+        return window.dash_clientside.no_update;
+    }
+    """,
+    Output("tab-content-container", "children"),  # Dummy output
+    Input("strategy-tabs", "active_tab"),
+    prevent_initial_call=True
+)
 
 # For Hugging Face Spaces deployment
 server = app.server
