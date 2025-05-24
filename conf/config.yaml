@@ -5,6 +5,7 @@ num_batches: 8
 visualization_port: 8050
 strategy: "1f1b"  # Options: "1f1b", "interleave"
 p2p_latency: 0.0
+microbatch_group_size_per_vp_stage: null
 
 # Operation time configurations
 op_times:

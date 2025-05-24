@@ -244,7 +244,7 @@ def generate_1f1b_interleave_schedule(config: ScheduleConfig):
     schedule = Schedule(config)
 
     for device_id in range(config.num_devices):
-        microbatch_group_size_per_vp_stage = config.num_devices
+        microbatch_group_size_per_vp_stage = config.microbatch_group_size_per_vp_stage
         num_warmup_microbatches = _get_pp_rank_microbatches(
             config.num_batches,
             config.num_devices,

@@ -71,6 +71,7 @@ def run_interleave(cfg: DictConfig) -> None:
         p2p_latency=cfg.p2p_latency,
         placement_strategy="interleave",
         op_times=op_times,
+        microbatch_group_size_per_vp_stage=cfg.microbatch_group_size_per_vp_stage,
     )
     schedule = generate_1f1b_interleave_schedule(schedule_config)
     schedule.execute()

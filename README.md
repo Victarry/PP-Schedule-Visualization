@@ -72,6 +72,8 @@ uv run python main.py strategy=interleave num_devices=4 num_stages=8 num_batches
 ```
 ![interleave](assets/interleave_1f1b.png)
 
+You can optionally setting `microbatch_group_size_per_vp_stage`.
+
 ### Running for ZB-1P strategy:
 ```bash
 uv run python main.py strategy=zb1p num_devices=4 num_stages=4 num_batches=8

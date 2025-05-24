@@ -83,6 +83,7 @@ class ScheduleConfig:
         placement_strategy: str = "standard",
         split_backward: bool = False,
         op_times: Optional[Dict[str, Union[float, Dict[int, float]]]] = None,
+        microbatch_group_size_per_vp_stage: Optional[int] = None,
     ):
         self.num_devices = num_devices
         self.num_stages = num_stages
@@ -90,6 +91,10 @@ class ScheduleConfig:
         self.p2p_latency = p2p_latency
         self.placement_strategy = placement_strategy
         self.split_backward = split_backward
+        if microbatch_group_size_per_vp_stage is None:
+            self.microbatch_group_size_per_vp_stage = num_devices
+        else:
+            self.microbatch_group_size_per_vp_stage = microbatch_group_size_per_vp_stage
 
         # Initialize default operation times
         if self.split_backward:
