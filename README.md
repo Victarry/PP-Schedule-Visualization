@@ -1,16 +1,3 @@
----
-title: Pipeline Parallelism Schedule Visualizer
-emoji: 📊
-colorFrom: indigo
-colorTo: blue
-sdk: docker
-app_file: app.py
-pinned: false
-suggested_hardware: cpu-basic
-suggested_storage: small
-header: default
----
-
 # Pipeline Parallelism Emulation and Visualization
 
 This project provides tools for emulating and visualizing pipeline parallelism strategies used in large language model training.
