@@ -243,6 +243,39 @@ class Schedule:
                 return None
         return self.ops[(batch_id, stage_id, op_type)]
 
+    def get_p2p_receiver_op(self, sender_op: Operation) -> Optional[Operation]:
+        """
+        Get the operation that receives P2P data from sender_op.
+        
+        For forward ops: sender on stage N sends to receiver on stage N+1
+        For backward ops: sender on stage N sends to receiver on stage N-1
+        
+        Returns None if there is no P2P receiver (first/last stage).
+        """
+        if isinstance(sender_op, OverlappedOperation):
+            # For overlapped ops, return None (P2P is overlapped with computation)
+            return None
+        
+        if sender_op.op_type == "forward":
+            # Forward sends to next stage
+            next_stage = sender_op.stage_id + 1
+            if next_stage >= self.config.num_stages:
+                return None  # Last stage, no P2P
+            return self.get_op(sender_op.batch_id, next_stage, "forward", allow_none=True)
+        
+        elif sender_op.op_type in ("backward", "backward_D"):
+            # Backward sends to previous stage
+            prev_stage = sender_op.stage_id - 1
+            if prev_stage < 0:
+                return None  # First stage, no P2P
+            # Try backward_D first, then backward
+            receiver = self.get_op(sender_op.batch_id, prev_stage, "backward_D", allow_none=True)
+            if receiver is None:
+                receiver = self.get_op(sender_op.batch_id, prev_stage, "backward", allow_none=True)
+            return receiver
+        
+        return None
+
     def get_dependencies(self, op: Operation, include_device_dependency=True):
         deps = []
         if isinstance(op, OverlappedOperation):
@@ -327,7 +360,34 @@ class Schedule:
         if include_device_dependency:
             device_index = self.device_queues[op.device_id].ops.index(op)
             if device_index > 0:
-                deps.append((self.device_queues[op.device_id].ops[device_index - 1], 0.0))
+                prev_op = self.device_queues[op.device_id].ops[device_index - 1]
+                
+                # Check if sync P2P should apply
+                # Sync P2P means sender waits for P2P transfer to complete before next op
+                # This adds p2p_latency to the device dependency gap
+                sync_p2p_gap = 0.0
+                if self.config.p2p_latency > 0:
+                    is_prev_overlapped = isinstance(prev_op, OverlappedOperation)
+                    is_current_overlapped = isinstance(op, OverlappedOperation)
+                    
+                    # Only add sync P2P gap when:
+                    # 1. Both ops are not overlapped (not in overlap schedule's steady state)
+                    # 2. Both ops have the same base type (both forward or both backward)
+                    # 3. Both ops are on the same stage (ensures we're in a pure warmup/cooldown
+                    #    sequence for a specific stage, avoiding cycles in interleaved schedules)
+                    if not is_prev_overlapped and not is_current_overlapped:
+                        prev_base_type = "backward" if prev_op.op_type.startswith("backward") else prev_op.op_type
+                        curr_base_type = "backward" if op.op_type.startswith("backward") else op.op_type
+                        
+                        if prev_base_type == curr_base_type and prev_op.stage_id == op.stage_id:
+                            receiver_op = self.get_p2p_receiver_op(prev_op)
+                            if receiver_op is not None and not isinstance(receiver_op, OverlappedOperation):
+                                # Sync P2P: sender waits for P2P transfer to complete
+                                # Current op starts after prev_op.end_time + p2p_latency
+                                # (not after receiver completes, just after transfer completes)
+                                sync_p2p_gap = self.config.p2p_latency
+                
+                deps.append((prev_op, sync_p2p_gap))
         return deps
 
     def show(self):
