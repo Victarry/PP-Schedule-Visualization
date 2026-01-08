@@ -292,6 +292,35 @@ timing_params_card = dbc.Card([
     ])
 ], style=card_style)
 
+# Per-stage timing configuration card
+per_stage_timing_card = dbc.Card([
+    dbc.CardBody([
+        html.H5([
+            html.I(className="bi bi-list-ol section-icon"),
+            "Per-Stage Timing Configuration"
+        ], className="section-title"),
+        
+        dbc.Button([
+            html.I(className="bi bi-sliders2 me-2"),
+            "Customize Per-Stage Timing"
+        ], 
+        id="per-stage-timing-toggle",
+        color="light",
+        className="mb-3 w-100",
+        size="sm"
+        ),
+        
+        dbc.Collapse([
+            dbc.Alert([
+                html.I(className="bi bi-info-circle-fill me-2"),
+                "Override global timing values for individual stages. Leave empty to use global values."
+            ], color="info", className="mb-3"),
+            
+            html.Div(id='per-stage-inputs-container', children=[])
+        ], id="per-stage-timing-collapse", is_open=False)
+    ])
+], style=card_style)
+
 # Updated app layout with improved structure
 app.layout = html.Div([
     header,
@@ -346,6 +375,7 @@ app.layout = html.Div([
                 basic_params_card,
                 scheduling_params_card,
                 timing_params_card,
+                per_stage_timing_card,
                 
                 # Generate button with better styling
                 dbc.Button([
@@ -521,6 +551,75 @@ def toggle_advanced_options(n_clicks, is_open):
         return not is_open
     return is_open
 
+# --- Callback to toggle Per-Stage Timing Collapse ---
+@app.callback(
+    Output("per-stage-timing-collapse", "is_open"),
+    Input("per-stage-timing-toggle", "n_clicks"),
+    State("per-stage-timing-collapse", "is_open"),
+    prevent_initial_call=True,
+)
+def toggle_per_stage_timing(n_clicks, is_open):
+    if n_clicks:
+        return not is_open
+    return is_open
+
+# --- Callback to dynamically generate per-stage timing inputs ---
+@app.callback(
+    Output("per-stage-inputs-container", "children"),
+    Input("num_stages", "value"),
+)
+def generate_per_stage_inputs(num_stages):
+    if num_stages is None or num_stages < 1:
+        return []
+    
+    # Limit to reasonable number of stages for UI
+    num_stages = min(int(num_stages), 32)
+    
+    stage_inputs = []
+    for stage_id in range(num_stages):
+        stage_inputs.append(
+            dbc.Row([
+                dbc.Col([
+                    html.Strong(f"Stage {stage_id}", className="text-muted")
+                ], width=2, className="d-flex align-items-center"),
+                dbc.Col([
+                    dbc.InputGroup([
+                        dbc.InputGroupText("F", style={"minWidth": "30px"}),
+                        dbc.Input(
+                            id={"type": "stage-forward", "index": stage_id},
+                            type="number",
+                            placeholder="1.0",
+                            min=0.01,
+                            step=0.01,
+                            size="sm"
+                        ),
+                    ], size="sm")
+                ], width=5),
+                dbc.Col([
+                    dbc.InputGroup([
+                        dbc.InputGroupText("B", style={"minWidth": "30px"}),
+                        dbc.Input(
+                            id={"type": "stage-backward", "index": stage_id},
+                            type="number",
+                            placeholder="1.0",
+                            min=0.01,
+                            step=0.01,
+                            size="sm"
+                        ),
+                    ], size="sm")
+                ], width=5),
+            ], className="mb-2 g-2")
+        )
+    
+    # Add header row
+    header = dbc.Row([
+        dbc.Col([html.Small("Stage", className="text-muted fw-bold")], width=2),
+        dbc.Col([html.Small("Forward Time", className="text-muted fw-bold")], width=5),
+        dbc.Col([html.Small("Backward Time", className="text-muted fw-bold")], width=5),
+    ], className="mb-2")
+    
+    return [header] + stage_inputs
+
 # --- Client-side Callback for Strategy Card Selection ---
 app.clientside_callback(
     """
@@ -576,12 +675,14 @@ app.clientside_callback(
     State('op_time_overlapped_fwd_bwd', 'value'),
     State('microbatch_group_size_per_vp_stage', 'value'),
     State('selected-strategies-store', 'data'),
+    State({'type': 'stage-forward', 'index': ALL}, 'value'),
+    State({'type': 'stage-backward', 'index': ALL}, 'value'),
     prevent_initial_call=True
 )
 def update_graph(n_clicks, num_devices, num_stages, num_batches, p2p_latency,
                  op_time_forward, op_time_backward, op_time_backward_d, op_time_backward_w,
                  op_time_overlapped_fwd_bwd, microbatch_group_size_per_vp_stage,
-                 selected_strategies):
+                 selected_strategies, stage_forward_values, stage_backward_values):
 
     strategy_display_order = ["1f1b", "1f1b_interleave", "1f1b_overlap", "1f1b_interleave_overlap", "dualpipe", "zb1p"]
 
@@ -669,14 +770,40 @@ def update_graph(n_clicks, num_devices, num_stages, num_batches, p2p_latency,
                      if adjustment_msg not in automatic_adjustments:
                          automatic_adjustments.append(adjustment_msg)
 
-                op_times = { "forward": float(op_time_forward) * time_scale_factor }
+                # Check if per-stage timing values are provided
+                has_per_stage_forward = stage_forward_values and any(v is not None for v in stage_forward_values)
+                has_per_stage_backward = stage_backward_values and any(v is not None for v in stage_backward_values)
+                
+                # Build forward timing - either per-stage dict or global value
+                if has_per_stage_forward:
+                    forward_times = {}
+                    for stage_id in range(current_num_stages):
+                        if stage_id < len(stage_forward_values) and stage_forward_values[stage_id] is not None:
+                            forward_times[stage_id] = float(stage_forward_values[stage_id]) * time_scale_factor
+                        else:
+                            # Use global value as fallback (default 1.0 if not specified)
+                            forward_times[stage_id] = float(op_time_forward if op_time_forward else 1.0) * time_scale_factor
+                    op_times = {"forward": forward_times}
+                else:
+                    op_times = {"forward": float(op_time_forward) * time_scale_factor}
 
+                # Build backward timing
                 if split_backward:
                     op_times["backward_D"] = float(op_time_backward_d) * time_scale_factor
                     op_times["backward_W"] = float(op_time_backward_w) * time_scale_factor
                     op_times["backward"] = (float(op_time_backward_d) + float(op_time_backward_w)) * time_scale_factor
                 else:
-                    op_times["backward"] = float(op_time_backward) * time_scale_factor
+                    if has_per_stage_backward:
+                        backward_times = {}
+                        for stage_id in range(current_num_stages):
+                            if stage_id < len(stage_backward_values) and stage_backward_values[stage_id] is not None:
+                                backward_times[stage_id] = float(stage_backward_values[stage_id]) * time_scale_factor
+                            else:
+                                # Use global value as fallback (default 1.0 if not specified)
+                                backward_times[stage_id] = float(op_time_backward if op_time_backward else 1.0) * time_scale_factor
+                        op_times["backward"] = backward_times
+                    else:
+                        op_times["backward"] = float(op_time_backward) * time_scale_factor
 
                 if op_time_overlapped_fwd_bwd is not None:
                     try:
