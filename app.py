@@ -10,7 +10,8 @@ from src.strategies import (
     generate_1f1b_overlap_schedule,
     generate_1f1b_interleave_schedule,
     generate_1f1b_interleave_overlap_schedule,
-    generate_dualpipe_schedule
+    generate_dualpipe_schedule,
+    generate_dualpipe_v_schedule
 )
 from src.visualizer import convert_schedule_to_visualization_format, create_pipeline_figure
 
@@ -21,6 +22,7 @@ STRATEGIES = {
     "1f1b_interleave": generate_1f1b_interleave_schedule,
     "1f1b_interleave_overlap": generate_1f1b_interleave_overlap_schedule,
     "dualpipe": generate_dualpipe_schedule,
+    "dualpipe_v": generate_dualpipe_v_schedule,
 }
 
 # Strategy descriptions for better UX
@@ -54,6 +56,11 @@ STRATEGY_INFO = {
         "name": "DualPipe",
         "description": "Dual pipeline execution for enhanced parallelism",
         "icon": "bi-diagram-2"
+    },
+    "dualpipe_v": {
+        "name": "DualPipeV",
+        "description": "DualPipe with virtual stages and zero-bubble backward scheduling",
+        "icon": "bi-diagram-3"
     }
 }
 
@@ -506,8 +513,8 @@ def validate_inputs(num_devices, num_stages, num_batches, p2p_latency,
     else:
         is_invalid["strategies"] = False
         # Additional validation: Check if required timings are provided for selected strategies
-        needs_split_backward = any(s in ["zb1p", "dualpipe"] for s in selected_strategies)
-        needs_combined_backward = any(s not in ["zb1p", "dualpipe"] for s in selected_strategies)
+        needs_split_backward = any(s in ["zb1p", "dualpipe", "dualpipe_v"] for s in selected_strategies)
+        needs_combined_backward = any(s not in ["zb1p", "dualpipe", "dualpipe_v"] for s in selected_strategies)
 
         if needs_split_backward and (op_time_backward_d is None or op_time_backward_w is None):
             is_invalid["op_time_backward_d"] = op_time_backward_d is None or op_time_backward_d <= 0
@@ -641,7 +648,7 @@ app.clientside_callback(
         }
         
         // Update card classes
-        const allStrategies = ['1f1b', 'zb1p', '1f1b_overlap', '1f1b_interleave', '1f1b_interleave_overlap', 'dualpipe'];
+        const allStrategies = ['1f1b', 'zb1p', '1f1b_overlap', '1f1b_interleave', '1f1b_interleave_overlap', 'dualpipe', 'dualpipe_v'];
         const cardClasses = allStrategies.map(strategy => 
             newStrategies.includes(strategy) 
                 ? 'strategy-card p-3 text-center selected' 
@@ -684,7 +691,7 @@ def update_graph(n_clicks, num_devices, num_stages, num_batches, p2p_latency,
                  op_time_overlapped_fwd_bwd, microbatch_group_size_per_vp_stage,
                  selected_strategies, stage_forward_values, stage_backward_values):
 
-    strategy_display_order = ["1f1b", "1f1b_interleave", "1f1b_overlap", "1f1b_interleave_overlap", "dualpipe", "zb1p"]
+    strategy_display_order = ["1f1b", "1f1b_interleave", "1f1b_overlap", "1f1b_interleave_overlap", "dualpipe", "dualpipe_v", "zb1p"]
 
     graph_components = []
     toast_components = []
@@ -727,10 +734,14 @@ def update_graph(n_clicks, num_devices, num_stages, num_batches, p2p_latency,
         current_num_stages = num_stages
         current_num_devices = num_devices
         
-        # Apply automatic adjustments for dualpipe
+        # Apply automatic adjustments for DualPipe variants
         if strategy == "dualpipe" and num_stages != num_devices:
             current_num_stages = num_devices
             adjustment_msg = f"Strategy '{strategy}': Number of Stages auto-adjusted to {num_devices} to match Devices."
+            automatic_adjustments.append(adjustment_msg)
+        elif strategy == "dualpipe_v" and num_stages != num_devices * 2:
+            current_num_stages = num_devices * 2
+            adjustment_msg = f"Strategy '{strategy}': Number of Stages auto-adjusted to {num_devices * 2} to match 2× Devices."
             automatic_adjustments.append(adjustment_msg)
 
         # Apply automatic adjustments for strategies that require num_stages == num_devices
@@ -739,7 +750,7 @@ def update_graph(n_clicks, num_devices, num_stages, num_batches, p2p_latency,
             adjustment_msg = f"Strategy '{strategy}': Number of Stages auto-adjusted to {num_devices} to match Devices."
             automatic_adjustments.append(adjustment_msg)
 
-        split_backward = strategy in ["zb1p", "dualpipe"]
+        split_backward = strategy in ["zb1p", "dualpipe", "dualpipe_v"]
 
         if split_backward and not all([op_time_backward_d, op_time_backward_w]):
             error_message = f"Strategy '{strategy}': Backward D and Backward W times are required."
@@ -757,6 +768,12 @@ def update_graph(n_clicks, num_devices, num_stages, num_batches, p2p_latency,
                 placement_strategy = "dualpipe"
                 if current_num_stages % 2 != 0:
                     error_message = f"Strategy '{strategy}': Requires an even number of stages."
+            elif strategy == "dualpipe_v":
+                placement_strategy = "dualpipe_v"
+                if current_num_devices % 2 != 0:
+                    error_message = f"Strategy '{strategy}': Requires an even number of devices."
+                elif current_num_stages != current_num_devices * 2:
+                    error_message = f"Strategy '{strategy}': Requires Stages equal to 2× Devices."
 
         # Create adjusted operation times based on placement strategy
         if not error_message:
@@ -1069,5 +1086,9 @@ app.clientside_callback(
 # For Hugging Face Spaces deployment
 server = app.server
 
+def run_app():
+    app.run(debug=False, host='0.0.0.0', port=7860)
+
+
 if __name__ == '__main__':
-    app.run_server(debug=False, host='0.0.0.0', port=7860) 
+    run_app()
